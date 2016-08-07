@@ -1,0 +1,11 @@
+config adbyby 'config'    
+        option enabled '0'
+        option forward '1'
+        option listen_address '0.0.0.0'
+        option listen_port '8118'
+        option buffer_limit '4096'
+        option keep_alive_timeout '30'
+        option socket_timeout '300'
+        option rule 'lazy,video,user'
+	option max_client_connections '2048'
+
