@@ -7,5 +7,7 @@ uci -q batch <<-EOF >/dev/null
 	commit ucitrack
 EOF
 
+/etc/init.d/adbyby enable
+
 rm -f /tmp/luci-indexcache
 exit 0

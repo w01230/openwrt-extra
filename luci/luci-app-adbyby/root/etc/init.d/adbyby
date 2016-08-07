@@ -1,73 +1,196 @@
 #!/bin/sh /etc/rc.common
-START=90
-LIST_SEP="
-"
-CONFIG_TEM="[info]\nid=ar71xx\n[update]"
+#Mr.Z<zenghuaguo@hotmail.com>
+START=99
+STOP=10
 
-append_params() {
-		local p; local v; local s="$1"; shift
-		for p in $*; do
-			config_get v config "$p"
-			IFS="$LIST_SEP"
-			for v in $v; do
-				[ -n "$v" ] && (
-						echo ""$p"="$v"" | sed -e 's|_|-|g' >> $config_file
-				)
-			done
-			unset IFS
+EXTRA_COMMANDS="add_rule del_rule"
+PROG_PATH=/usr/share/adbyby
+DATA_PATH=$PROG_PATH/data
+WAN_FILE=/tmp/adbyby_wan.conf
+CRON_FILE=/etc/crontabs/root
+ipt_n="iptables -t nat"
+dns_ver=$(dnsmasq --version | grep no-ipset)
+
+get_config()
+{
+	config_get_bool enable $1 enable
+	config_get daemon $1 daemon
+	config_get cron_mode $1 cron_mode
+	config_get lan_mode $1 lan_mode
+	config_get lan_ip $1 lan_ip
+	config_get wan_mode $1 wan_mode
+	config_get wan_ip $1 wan_ip
+	config_get exrule $1 exrule
+	config_get whitehost $1 whitehost
+}
+
+add_rules()
+{
+	rm -f $DATA_PATH/user.bin
+	grep -v ^! $DATA_PATH/rules.txt > $DATA_PATH/user.txt
+}
+
+add_exrule()
+{
+	if [ -n "$exrule" ]; then
+		wget -O- $exrule --quiet --timeout=5 --no-check-certificate | grep -E '^(@@\||\||[[:alnum:]])' | sort -u >> $DATA_PATH/user.txt
+	fi
+}
+
+add_whitehost()
+{
+	for list in $whitehost; do
+		echo @@\|http://\$domain=$list >> $DATA_PATH/user.txt
+	done
+}
+
+add_cron()
+{
+	if [ $cron_mode -eq 1 ]; then
+		echo '0 6 * * * /etc/init.d/adbyby restart' >> $CRON_FILE
+		crontab $CRON_FILE
+	fi
+}
+
+del_cron()
+{
+	sed -i '/adbyby/d' $CRON_FILE
+	/etc/init.d/cron restart
+}
+
+ip_rule()
+{
+	if [ $lan_mode -ne 0 ]; then
+		ipset -N adbyby_lan hash:ip
+		for ip in $lan_ip; do
+			ipset -A adbyby_lan $ip 2>/dev/null
 		done
+		case $lan_mode in
+			1)
+				$ipt_n -A ADBYBY -m set ! --match-set adbyby_lan src -j RETURN
+				;;
+			2)
+				$ipt_n -A ADBYBY -m set --match-set adbyby_lan src -j RETURN
+				;;
+		esac
+	fi
+	ipset -N adbyby_wan hash:ip
+	local var=0
+	local ad_ver=$($PROG_PATH/adbyby --version | awk '{print substr($3,1,3)}')
+	case $ad_ver in
+		2.1|2.5|2.6)
+			var=0
+			;;
+		*)
+			var=1
+			;;
+	esac
+	if [ $wan_mode -ne 0 ]; then
+		if [ -z "$dns_ver" ]; then
+			for ip in $wan_ip; do
+				if [ -n "$(echo $ip | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}')" ]; then
+					ipset -A adbyby_wan $ip 2>/dev/null
+				else
+					echo ipset=/$ip/adbyby_wan >> $WAN_FILE
+				fi
+			done
+			echo conf-file=$WAN_FILE >> /etc/dnsmasq.conf
+			case $var in
+				0)
+					/etc/init.d/dnsmasq restart
+					;;
+				1)
+					[ $wan_mode -eq 2 ] && /etc/init.d/dnsmasq restart
+					;;
+			esac
+		else
+			for ip in $wan_ip; do
+				if [ -n "$(echo $ip | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}')" ]; then
+					ipset -A adbyby_wan $ip 2>/dev/null
+				else
+					local iplist=$(nslookup $ip | awk '/^Address.*([0-9]{1,3}\.){3}[0-9]{1,3}$/{print $3}')
+					for line in $iplist; do
+						ipset -A adbyby_wan $line 2>/dev/null
+					done
+				fi
+			done
+		fi
+	fi
+	case $wan_mode in
+		0)
+			[ -z "$dns_ver" ] && [ $var -eq 1 ] && \
+			[ $(awk -F= '/^ipset/{print $2}' $PROG_PATH/adhook.ini) -eq 1 ] && \
+			$ipt_n -A ADBYBY -m set ! --match-set adbyby_wan dst -j RETURN
+			;;
+		1)
+			$ipt_n -A ADBYBY -m set ! --match-set adbyby_wan dst -j RETURN
+			;;
+		2)
+			$ipt_n -A ADBYBY -m set --match-set adbyby_wan dst -j RETURN
+			;;
+	esac
 }
 
-append_template(){	
-	echo -e $CONFIG_TEM > $config_file
-	echo "rule=$rule">> $config_file
-	echo -e "\n[cfg]">> $config_file
-	echo "listen-address=$listen_address:$listen_port">> $config_file
-	echo "buffer-limit=$buffer_limit">> $config_file
-	echo "keep-alive-timeout=$keep_alive_timeout">> $config_file
-	echo "socket-timeout=$socket_timeout">> $config_file
-	echo "max_client_connections=$max_client_connections" >> $config_file
+add_rule()
+{
+	$ipt_n -N ADBYBY
+	$ipt_n -A ADBYBY -d 0.0.0.0/8 -j RETURN
+	$ipt_n -A ADBYBY -d 10.0.0.0/8 -j RETURN
+	$ipt_n -A ADBYBY -d 127.0.0.0/8 -j RETURN
+	$ipt_n -A ADBYBY -d 169.254.0.0/16 -j RETURN
+	$ipt_n -A ADBYBY -d 172.16.0.0/12 -j RETURN
+	$ipt_n -A ADBYBY -d 192.168.0.0/16 -j RETURN
+	$ipt_n -A ADBYBY -d 224.0.0.0/4 -j RETURN
+	$ipt_n -A ADBYBY -d 240.0.0.0/4 -j RETURN
+	ip_rule
+	$ipt_n -A ADBYBY -p tcp --dport 80 -j REDIRECT --to-ports 8118
+	$ipt_n -I PREROUTING -j ADBYBY
 }
-start_forward(){
-	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports $listen_port
-	iptables -t nat -I zone_lan_prerouting -j PREROUTING 
+
+del_rule()
+{
+	$ipt_n -D PREROUTING -j ADBYBY 2>/dev/null
+	$ipt_n -F ADBYBY 2>/dev/null
+	$ipt_n -X ADBYBY 2>/dev/null
+	ipset -F adbyby_lan 2>/dev/null
+	ipset -X adbyby_lan 2>/dev/null
+	ipset -F adbyby_wan 2>/dev/null
+	ipset -X adbyby_wan 2>/dev/null
+	if [ -z "$dns_ver" ]; then
+		sed -i '/adbyby/d' /etc/dnsmasq.conf
+		rm -f $WAN_FILE
+		rm -f /tmp/adbyby_host.conf
+		/etc/init.d/dnsmasq restart
+	fi
 }
-stop_forward(){
-	iptables -t nat -D zone_lan_prerouting -j PREROUTING  &> /dev/null
-	iptables -t nat -F PREROUTING &> /dev/null
+
+start()
+{
+	config_load adbyby
+	config_foreach get_config adbyby
+	[ $enable -eq 0 ] && exit 0
+	add_rules
+	add_exrule
+	add_whitehost
+	add_cron
+	case $daemon in
+		0)
+			$PROG_PATH/adbyby --no-daemon &>/dev/null &
+			;;
+		1)
+			$PROG_PATH/adbyby &>/dev/null &
+			;;
+	esac
 	sleep 1
-	iptables -t nat -X PREROUTING &> /dev/null
+	[ -n "$(pgrep $PROG_PATH/adbyby)" ] && \
+	iptables-save | grep ADBYBY >/dev/null || \
+	add_rule
 }
-start() {
-	config_file="/usr/share/adbyby/adhook.ini"
-	config_load "adbyby"
-	local enabled forward rule listen_address listen_port
-	config_get enabled config enabled
-	config_get forward config forward
-	config_get rule config rule
-	config_get listen_address config listen_address
-	config_get listen_port config listen_port
-	config_get buffer_limit config buffer_limit
-	config_get max_client_connections config max_client_connections
-	config_get keep_alive_timeout config keep_alive_timeout
-	config_get socket_timeout config socket_timeout
-	config_get max_client_connections config max_client_connections
-	append_template
-	local s="$1"
-	append_params "$s" \
-		buffer_limit keep_alive_timeout socket_timeout
-	[ "$enabled" = '0' ] && { 
-		return 0
-	} 
-	/usr/share/adbyby/adbyby &
-	[ "$forward" = '0' ] && {
-		stop_forward
-		return 0
-	}
-	start_forward
-}	
-stop() { 
-	service_stop /usr/share/adbyby/adbyby
-	sleep 1
-	stop_forward
+
+stop()
+{
+	del_rule
+	del_cron
+	killall -q -9 adbyby.sh
+	killall -q adbyby
 }
