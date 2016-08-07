@@ -2,15 +2,52 @@
 openwrt-dist-luci: ShadowSocks
 ]]--
 
+local pkg_name
+local min_version = "2.4.8-2"
 local m, s, o
 local shadowsocks = "shadowsocks"
 local uci = luci.model.uci.cursor()
 local ipkg = require("luci.model.ipkg")
 
-if luci.sys.call("pidof ss-redir >/dev/null") == 0 then
-	m = Map(shadowsocks, translate("ShadowSocks"), translate("ShadowSocks is running"))
-else
-	m = Map(shadowsocks, translate("ShadowSocks"), translate("ShadowSocks is not running"))
+function is_running(name)
+	return luci.sys.call("pidof %s >/dev/null" %{name}) == 0
+end
+
+function get_status(name)
+	if is_running(name) then
+		return translate("RUNNING")
+	end
+	return translate("NOT RUNNING")
+end
+
+function is_installed(name)
+	return ipkg.installed(name)
+end
+
+function get_version()
+	local version = "1.0.0-1"
+	ipkg.list_installed("shadowsocks-libev-spec*", function(n, v, d)
+		pkg_name = n
+		version = v
+	end)
+	return version
+end
+
+function compare_versions(ver1, comp, ver2)
+	if not ver1 or not (#ver1 > 0)
+	or not comp or not (#comp > 0)
+	or not ver2 or not (#ver2 > 0) then
+		return nil
+	end
+	return luci.sys.call("opkg compare-versions '%s' '%s' '%s'" %{ver1, comp, ver2}) == 1
+end
+
+if compare_versions(min_version, ">>", get_version()) then
+	local tip = 'shadowsocks-libev-spec not found'
+	if pkg_name then
+		tip = 'Please upgrade %s to v%s and above.' %{pkg_name, min_version}
+	end
+	return Map(shadowsocks, translate("ShadowSocks"), '<b style="color:red">%s</b>' %{tip})
 end
 
 local chnroute = uci:get_first("chinadns", "chinadns", "chnroute")
@@ -37,9 +74,9 @@ local encrypt_methods = {
 	"chacha20-ietf",
 }
 
-ipkg.list_installed("shadowsocks-libev-spec", function(n, v, d)
+if is_installed("shadowsocks-libev-spec-polarssl") then
 	for i=1,5,1 do table.remove(encrypt_methods, 11) end
-end)
+end
 
 uci:foreach(shadowsocks, "servers", function(s)
 	if s.alias then
@@ -48,6 +85,18 @@ uci:foreach(shadowsocks, "servers", function(s)
 		server_table[s[".name"]] = "%s:%s" %{s.server, s.server_port}
 	end
 end)
+
+m = Map(shadowsocks, translate("ShadowSocks"), translate("A lightweight secured SOCKS5 proxy"))
+
+-- [[ Running Status ]]--
+s = m:section(TypedSection, "global", translate("Running Status"))
+s.anonymous = true
+
+o = s:option(DummyValue, "_status", translate("Transparent Proxy"))
+o.value = get_status("ss-redir")
+
+o = s:option(DummyValue, "_status", translate("UDP Forward"))
+o.value = get_status("ss-tunnel")
 
 -- [[ Global Setting ]]--
 s = m:section(TypedSection, "global", translate("Global Setting"))
@@ -59,10 +108,14 @@ for k, v in pairs(server_table) do o:value(k, v) end
 o.default = "nil"
 o.rmempty = false
 
-o = s:option(ListValue, "udp_relay_server", translate("UDP Relay Server"))
-o:value("", translate("Disable"))
-o:value("same", translate("Same as Global Server"))
-for k, v in pairs(server_table) do o:value(k, v) end
+o = s:option(ListValue, "udp_relay_server", translate("UDP-Relay Server"))
+if is_installed("iptables-mod-tproxy") then
+	o:value("", translate("Disable"))
+	o:value("same", translate("Same as Global Server"))
+	for k, v in pairs(server_table) do o:value(k, v) end
+else
+	o:value("", translate("Unusable - Missing iptables-mod-tproxy"))
+end
 
 -- [[ Servers Setting ]]--
 s = m:section(TypedSection, "servers", translate("Servers Setting"))
@@ -117,23 +170,6 @@ o = s:option(Value, "tunnel_forward", translate("Forwarding Tunnel"))
 o.default = "8.8.4.4:53"
 o.rmempty = false
 
--- [[ Local Client ]]--
-s = m:section(TypedSection, "local_client", translate("Local Client"))
-s.anonymous = true
-
-o = s:option(Flag, "local_enable", translate("Enable"))
-o.default = 0
-o.rmempty = false
-
-o = s:option(Value, "client_port", translate("Local Client Listening Port"))
-o.datatype = "port"
-o.default = 1081
-o.rmempty = false
-
-o = s:option(Value, "client_address", translate("Local Client Listening Address"))
-o.default = "127.0.0.1"
-o.rmempty = false
-
 -- [[ Access Control ]]--
 s = m:section(TypedSection, "access_control", translate("Access Control"))
 s.anonymous = true
@@ -156,14 +192,25 @@ o.datatype = "ip4addr"
 -- Part of LAN
 s:tab("lan_ac", translate("Interfaces - LAN"))
 
-o = s:taboption("lan_ac", ListValue, "lan_ac_mode", translate("LAN Access Control"))
-o:value("0", translate("Disable"))
-o:value("w", translate("Allow listed only"))
-o:value("b", translate("Allow all except listed"))
+o = s:taboption("lan_ac", DynamicList, "interface", translate("Interface"))
+o.template = "cbi/network_netlist"
+o.nocreate = true
+o.unspecified = false
+o.widget = "checkbox"
+o.default = "lan"
 o.rmempty = false
 
-o = s:taboption("lan_ac", DynamicList, "lan_ac_ips", translate("LAN Host List"))
-o.datatype = "ipaddr"
-for _, v in ipairs(arp_table) do o:value(v["IP address"]) end
+o = s:taboption("lan_ac", ListValue, "lan_default_target", translate("Default Action"))
+o:value("SS_SPEC_WAN_AC", translate("Normal"))
+o:value("RETURN", translate("Bypassed"))
+o:value("SS_SPEC_WAN_FW", translate("Global"))
+o.default = "SS_SPEC_WAN_AC"
+
+o = s:taboption("lan_ac", DynamicList, "lan_hosts_action", translate("Hosts Action"))
+for _, v in ipairs(arp_table) do
+	o:value("b,%s" %{v["IP address"]}, "%s %s (%s)" %{translate("Bypassed"), v["IP address"], v["HW address"]})
+	o:value("g,%s" %{v["IP address"]}, "%s %s (%s)" %{translate("Global"), v["IP address"], v["HW address"]})
+	o:value("n,%s" %{v["IP address"]}, "%s %s (%s)" %{translate("Normal"), v["IP address"], v["HW address"]})
+end
 
 return m

@@ -1,29 +1,35 @@
-msgid "chinadns"
-msgstr "ChinaDNS"
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Also filter results inside China from foreign DNS servers"
+msgstr "同时过滤从国外DNS返回的IP为国内的结果"
+
+msgid "ChinaDNS is not running"
+msgstr "ChinaDNS 未运行"
+
+msgid "ChinaDNS is running"
+msgstr "ChinaDNS 运行中"
 
 msgid "ChinaDNS"
-msgstr "中国DNS"
+msgstr "ChinaDNS"
 
-msgid "chinadns is not running"
-msgstr "ChinaDNS 未启动"
+msgid "CHNRoute File"
+msgstr "国内路由表"
 
-msgid "chinadns is running"
-msgstr "ChinaDNS 已启动"
+msgid "Enable Bidirectional Filter"
+msgstr "启用双向过滤"
 
-msgid "Upstream DNS Server"
-msgstr "上游DNS服务器"
+msgid "Enable"
+msgstr "启用"
 
-msgid "Delay"
-msgstr "DNS污染延时"
+msgid "General Setting"
+msgstr "基本设置"
 
-msgid "IP blacklist"
-msgstr "被污染IP"
+msgid "Local Port"
+msgstr "本地端口"
 
-msgid "CHNRoute"
-msgstr "中国路由表"
+msgid "Upstream Servers"
+msgstr "上游服务器"
 
-msgid "DNS compression pointer mutation"
-msgstr "启用DNS压缩指针"
-
-msgid "DNS bi-directional CHNRoute filter"
-msgstr "CHNRoute 双向过滤"
+msgid "Use commas to separate multiple ip address"
+msgstr "多个IP地址使用逗号隔开"
