@@ -40,20 +40,20 @@ o = s:taboption("basic", ListValue, "daemon")
 o.title = translate("守护进程")
 o:value("0", translate("关闭"))
 o:value("1", translate("开启"))
-o.default = 2
+o.default = 1
 o.rmempty = false
 
 o = s:taboption("basic", Button, "proxy")
 o.title = translate("透明代理")
 if SYS.call("iptables-save | grep ADBYBY >/dev/null") == 0 then
-	o.inputtitle = translate("关闭")
+	o.inputtitle = translate("开启")
 	o.inputstyle = "reset"
 	o.write = function()
 		SYS.call("/etc/init.d/adbyby del_rule")
 		HTTP.redirect(DISP.build_url("admin", "services", "adbyby"))
 	end
 else
-	o.inputtitle = translate("开启")
+	o.inputtitle = translate("关闭")
 	o.inputstyle = "apply"
 	o.write = function()
 		SYS.call('[ -n "$(pgrep adbyby)" ] && /etc/init.d/adbyby add_rule')
