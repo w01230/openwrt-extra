@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-shadowsocks
-PKG_VERSION:=1.3.4
+PKG_VERSION:=1.3.5
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPLv3
@@ -25,7 +25,7 @@ define Package/luci-app-shadowsocks
 	SUBMENU:=3. Applications
 	TITLE:=LuCI Support for shadowsocks-libev
 	PKGARCH:=all
-	DEPENDS:=+iptables +ipset +ip
+	DEPENDS:=+iptables +ipset
 endef
 
 define Package/luci-app-shadowsocks/description
@@ -73,7 +73,7 @@ define Package/luci-app-shadowsocks/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/root/etc/uci-defaults/* $(1)/etc/uci-defaults/
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) ./files/root/usr/bin/* $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/root/usr/bin/ss-rules $(1)/usr/bin/ss-rules
 endef
 
 $(eval $(call BuildPackage,luci-app-shadowsocks))
