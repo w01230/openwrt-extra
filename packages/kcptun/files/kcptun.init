@@ -1,0 +1,198 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
+
+START=90
+STOP=15
+
+CONFIG=kcptun
+CONFIG_FILE=/var/etc/$CONFIG.json
+
+uci_get_by_name() {
+	local ret=$(uci get $CONFIG.$1.$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+uci_get_by_type() {
+	local index=0
+	if [ -n $4 ]; then
+		index=$4
+	fi
+	local ret=$(uci get $CONFIG.@$1[$index].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+gen_config_file() {
+	cat <<-EOF >$CONFIG_FILE
+		{
+			"server": "$(uci_get_by_name $1 server)",
+			"server_port": $(uci_get_by_name $1 server_port),
+			"password": "$(uci_get_by_name $1 password)",
+			"redir_port": $(uci_get_by_name $1 redir_port 1080),
+			"socks5_port": $(uci_get_by_name $1 socks5_port 1081),
+			"mode": "$(uci_get_by_name $1 mode fast)",
+			"crypt": "$(uci_get_by_name $1 crypt aes)",
+			"mtu": $(uci_get_by_name $1 mtu),
+			"sndwnd": $(uci_get_by_name $1 sndwnd),
+			"rcvwnd": $(uci_get_by_name $1 rcvwnd),
+			"nocomp": $(uci_get_by_name $1 nocomp),
+			"conn": $(uci_get_by_name $1 conn 1)
+		}
+EOF
+}
+
+load_config() {
+	GLOBAL_SERVER=$(uci_get_by_type global global_server nil)
+	if [ $GLOBAL_SERVER == "nil" ]; then
+		return 1
+	fi
+	PROXY_MODE=$(uci_get_by_type global proxy_mode gfwlist)
+	DNS_MODE=$(uci_get_by_type global dns_mode ss-tunnel)
+	DNS_FORWARD=$(uci_get_by_type global dns_forward 8.8.8.8:53)
+	
+	REDIR_PORT=$(uci_get_by_name $GLOBAL_SERVER redir_port 1080)
+	SOCKS_PORT=$(uci_get_by_name $GLOBAL_SERVER socks5_port 1081)
+	gen_config_file $GLOBAL_SERVER
+	return 0
+}
+
+start_redir() {
+	mkdir -p /var/run /var/etc
+	/usr/bin/kcpclient \
+	-c $CONFIG_FILE \
+	>/dev/null 2>&1 &
+}
+
+start_dns() {
+	case "$DNS_MODE" in
+		dns2socks)
+			cp /usr/bin/dns2socks /var/run/dns2kcpsocks
+			/var/run/dns2kcpsocks \
+			127.0.0.1:$SOCKS_PORT \
+			$DNS_FORWARD \
+			127.0.0.1:5300 \
+			>/dev/null 2>&1 &
+		;;
+	esac
+}
+
+get_action_chain() {
+	case "$1" in
+		disable)
+			echo "RETURN"
+		;;
+		global)
+			echo "KCPTUN_GLO"
+		;;
+		gfwlist)
+			echo "KCPTUN_GFW"
+		;;
+		chnroute)
+			echo "KCPTUN_CHN"
+		;;
+		# gamemode)
+		# 	echo "KCPTUN_GAM"
+		# ;;
+	esac
+}
+
+add_rule() {
+	#创建所需的ipset
+	IPSET_GFW="vpn"
+	IPSET_CHN="chnroute"
+	IPSET_CDN="cdn"
+	ipset -! create $IPSET_GFW iphash
+	ipset -! create $IPSET_CDN iphash
+	ipset -! create $IPSET_CHN nethash && ipset flush $IPSET_CHN
+	sed -e "s/^/add $IPSET_CHN &/g" /usr/share/kcptun/chnroute.txt | awk '{print $0} END{print "COMMIT"}' | ipset -R
+	#生成代理规则
+	#  忽略特殊IP段
+	iptables -t nat -N KCPTUN
+	iptables -t nat -I PREROUTING -j KCPTUN
+	iptables -t nat -A KCPTUN -d 0.0.0.0/8 -j RETURN
+	iptables -t nat -A KCPTUN -d 10.0.0.0/8 -j RETURN
+	iptables -t nat -A KCPTUN -d 127.0.0.0/8 -j RETURN
+	iptables -t nat -A KCPTUN -d 169.254.0.0/16 -j RETURN
+	iptables -t nat -A KCPTUN -d 172.16.0.0/12 -j RETURN
+	iptables -t nat -A KCPTUN -d 192.168.0.0/16 -j RETURN
+	iptables -t nat -A KCPTUN -d 224.0.0.0/4 -j RETURN
+	iptables -t nat -A KCPTUN -d 240.0.0.0/4 -j RETURN
+	#  生成对应CHAIN
+	iptables -t nat -N KCPTUN_GLO
+	iptables -t nat -A KCPTUN_GLO -p tcp -j REDIRECT --to $REDIR_PORT
+	iptables -t nat -N KCPTUN_GFW
+	iptables -t nat -A KCPTUN_GFW -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $REDIR_PORT
+	iptables -t nat -N KCPTUN_CHN
+	iptables -t nat -A KCPTUN_CHN -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $REDIR_PORT
+	iptables -t nat -A KCPTUN_CHN -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $REDIR_PORT
+	#  游戏模式
+	# iptables -t nat -N KCPTUN_GAM
+	# iptables -t nat -A KCPTUN_GAM -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $REDIR_PORT
+	# ip route add local 0.0.0.0/0 dev lo table 100
+	# ip rule add fwmark 0x01/0x01 table 100
+	# iptables -t mangle -N KCPTUN
+	# iptables -t mangle -I PREROUTING -j KCPTUN
+	# iptables -t mangle -A KCPTUN -d 0.0.0.0/8 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 10.0.0.0/8 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 127.0.0.0/8 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 169.254.0.0/16 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 172.16.0.0/12 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 192.168.0.0/16 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 224.0.0.0/4 -j RETURN
+	# iptables -t mangle -A KCPTUN -d 240.0.0.0/4 -j RETURN
+	# iptables -t mangle -N KCPTUN_GAM
+	# iptables -t mangle -A KCPTUN_GAM -p tcp -m set --match-set $IPSET_GFW dst -j TPROXY --on-port $REDIR_PORT --tproxy-mark 0x01/0x01
+	# iptables -t mangle -A KCPTUN_GAM -p udp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j TPROXY --on-port $REDIR_PORT --tproxy-mark 0x01/0x01
+	#  加载ACLS
+	for i in $(seq 0 100)
+	do
+		local ip=$(uci_get_by_type acl_rule ipaddr '' $i)
+		local mode=$(uci_get_by_type acl_rule proxy_mode '' $i)
+		if [ -z $ip ] || [ -z $mode ]; then
+			break
+		fi
+		iptables -t nat -A KCPTUN -s $ip -j $(get_action_chain $mode)
+		iptables -t nat -A KCPTUN -s $ip -j RETURN
+		# if [ "$mode" == "gamemode" ]; then
+		# 	iptables -t mangle -A KCPTUN -s $ip -j $(get_action_chain $mode)
+		# 	iptables -t mangle -A KCPTUN -s $ip -j RETURN
+		# fi
+	done
+	#  加载默认代理模式
+	iptables -t nat -A KCPTUN -j $(get_action_chain $PROXY_MODE)
+	# if [ "$PROXY_MODE" == "gamemode" ]; then
+	# 	iptables -t mangle -A KCPTUN -j $(get_action_chain $PROXY_MODE)
+	# fi
+}
+
+del_rule() {
+	iptables -t nat -D PREROUTING -j KCPTUN
+	iptables -t nat -F KCPTUN && iptables -t nat -X KCPTUN
+	iptables -t nat -F KCPTUN_GLO && iptables -t nat -X KCPTUN_GLO
+	iptables -t nat -F KCPTUN_GFW && iptables -t nat -X KCPTUN_GFW
+	iptables -t nat -F KCPTUN_CHN && iptables -t nat -X KCPTUN_CHN
+	# iptables -t nat -F KCPTUN_GAM && iptables -t nat -X KCPTUN_GAM
+	# iptables -t mangle -D PREROUTING -j KCPTUN
+	# iptables -t mangle -F KCPTUN && iptables -t mangle -X KCPTUN
+	# iptables -t mangle -F KCPTUN_GAM && iptables -t mangle -X KCPTUN_GAM
+	# ip rule del fwmark 0x01/0x01 table 100
+	# ip route del local 0.0.0.0/0 table 100
+}
+
+start() {
+	! load_config && exit 0
+	start_redir
+	start_dns
+	add_rule
+}
+
+stop() {
+	del_rule
+	killall -q -9 kcpclient
+	killall -q -9 dns2kcpsocks
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+# adbyby integration for firewall3
+
+/etc/init.d/adbyby reload

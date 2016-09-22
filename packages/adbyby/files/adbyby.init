@@ -1,0 +1,117 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
+
+START=99
+STOP=15
+
+CONFIG=adbyby
+
+uci_get_by_name() {
+	local ret=$(uci get $CONFIG.$1.$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+uci_get_by_type() {
+	local index=0
+	if [ -n $4 ]; then
+		index=$4
+	fi
+	local ret=$(uci get $CONFIG.@$1[$index].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+iptables_ext() {
+	iptables -t nat -C $2 $3 2>/dev/null
+	local ret=$?
+	if [ "$ret" -ne 0 ];then
+		iptables -t nat -$1 $2 $3 2>/dev/null
+	fi
+}
+
+is_true() {
+	case $1 in
+		1|on|true|yes|enabled) echo 0;;
+		*) echo 1;;
+	esac
+}
+
+load_config() {
+	ENABLED=$(uci_get_by_type global enabled)
+	FILTER_MODE=$(uci_get_by_type global filter_mode adblock)
+	return $(is_true $ENABLED)
+}
+
+get_action_chain() {
+	case "$1" in
+		disable)
+			echo "RETURN"
+		;;
+		global)
+			echo "ADBYBY_GLO"
+		;;
+		adblock)
+			echo "ADBYBY_ADB"
+		;;
+	esac
+}
+
+add_rule() {
+	iptables -t nat -N ADBYBY 2>/dev/null
+	iptables -t nat -N ADBYBY_GLO 2>/dev/null
+	iptables -t nat -N ADBYBY_ADB 2>/dev/null
+	iptables_ext I PREROUTING "-j ADBYBY"
+	#创建所需的ipset
+	IPSET_ADB="adblock"
+	ipset -! create $IPSET_ADB iphash && ipset -! add $IPSET_ADB 100.100.100.100
+	#生成代理规则
+	#  忽略特殊IP段
+	iptables_ext A ADBYBY "-d 0.0.0.0/8 -j RETURN"
+	iptables_ext A ADBYBY "-d 10.0.0.0/8 -j RETURN"
+	iptables_ext A ADBYBY "-d 127.0.0.0/8 -j RETURN"
+	iptables_ext A ADBYBY "-d 169.254.0.0/16 -j RETURN"
+	iptables_ext A ADBYBY "-d 172.16.0.0/12 -j RETURN"
+	iptables_ext A ADBYBY "-d 192.168.0.0/16 -j RETURN"
+	iptables_ext A ADBYBY "-d 224.0.0.0/4 -j RETURN"
+	iptables_ext A ADBYBY "-d 240.0.0.0/4 -j RETURN"
+	#  生成对应CHAIN
+	LOCAL_PORT=8118
+	iptables_ext A ADBYBY_GLO "-p tcp --dport 80 -j REDIRECT --to $LOCAL_PORT"
+	iptables_ext A ADBYBY_ADB "-p tcp --dport 80 -m set --match-set $IPSET_ADB dst -j REDIRECT --to $LOCAL_PORT"
+	#加载ACLS
+	for i in $(seq 0 100)
+	do
+		local ip=$(uci_get_by_type acl_rule ipaddr '' $i)
+		local mode=$(uci_get_by_type acl_rule filter_mode '' $i)
+		if [ -z $ip ] || [ -z $mode ]; then
+			break
+		fi
+		iptables_ext A ADBYBY "-s $ip -j $(get_action_chain $mode)"
+		iptables_ext A ADBYBY "-s $ip -j RETURN"
+	done
+	#加载默认代理模式
+	iptables_ext A ADBYBY "-j $(get_action_chain $FILTER_MODE)"
+}
+
+del_rule() {
+	iptables -t nat -D PREROUTING -j ADBYBY 2>/dev/null
+	iptables -t nat -F ADBYBY 2>/dev/null && iptables -t nat -X ADBYBY 2>/dev/null
+	iptables -t nat -F ADBYBY_GLO 2>/dev/null && iptables -t nat -X ADBYBY_GLO 2>/dev/null
+	iptables -t nat -F ADBYBY_ADB 2>/dev/null && iptables -t nat -X ADBYBY_ADB 2>/dev/null
+}
+
+start() {
+	! load_config && exit 0
+	/usr/share/adbyby/adbyby >/dev/null 2>&1 &
+	add_rule
+}
+
+stop() {
+	del_rule
+	kill -9 $(ps|grep '/usr/share/adbyby/adbyby'|grep -v 'grep'|awk '{print$1}')
+}

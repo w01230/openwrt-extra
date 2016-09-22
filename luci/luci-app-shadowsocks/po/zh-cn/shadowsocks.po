@@ -1,0 +1,96 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "ShadowSocks"
+msgstr "ShadowSocks"
+
+msgid "A lightweight secured SOCKS5 proxy"
+msgstr "一个轻量级安全SOCKS5代理"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Disable"
+msgstr "停用"
+
+msgid "Running Status"
+msgstr "运行状态"
+
+msgid "RUNNING"
+msgstr "运行中"
+
+msgid "NOT RUNNING"
+msgstr "未运行"
+
+msgid "Transparent Proxy"
+msgstr "透明代理"
+
+msgid "Global Setting"
+msgstr "服务配置"
+
+msgid "Current Server"
+msgstr "当前服务器"
+
+msgid "Default"
+msgstr "默认"
+
+msgid "Proxy Mode"
+msgstr "代理模式"
+
+msgid "No Proxy"
+msgstr "不代理"
+
+msgid "Global Proxy"
+msgstr "全局代理"
+
+msgid "GFW List"
+msgstr "GFW名单"
+
+msgid "China WhiteList"
+msgstr "大陆白名单"
+
+msgid "Game Mode"
+msgstr "游戏模式"
+
+msgid "DNS Forward Mode"
+msgstr "DNS转发模式"
+
+msgid "DNS Forward Address"
+msgstr "DNS转发地址"
+
+msgid "Servers List"
+msgstr "服务器列表"
+
+msgid "Onetime Authentication"
+msgstr "单次验证"
+
+msgid "Server Address"
+msgstr "服务器地址"
+
+msgid "Server Port"
+msgstr "服务器端口"
+
+msgid "Local Port"
+msgstr "本地端口"
+
+msgid "Connection Timeout"
+msgstr "连接超时"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Encrypt Method"
+msgstr "加密方式"
+
+msgid "Ping Latency"
+msgstr "Ping 延迟"
+
+msgid "ShadowSocks ACLs"
+msgstr "ShadowSocks 访问控制"
+
+msgid "ACLs is a tools which used to designate specific IP proxy mode"
+msgstr "访问控制列表是用于指定特殊IP代理模式的工具"
+
+msgid "IP Address"
+msgstr "内部IP地址"
+

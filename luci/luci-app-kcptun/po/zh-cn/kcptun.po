@@ -1,0 +1,105 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Kcptun"
+msgstr "Kcptun"
+
+msgid "a fast udp tunnel based on kcp protocol"
+msgstr "基于KCP协议的快速UDP通讯隧道"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Disable"
+msgstr "停用"
+
+msgid "Running Status"
+msgstr "运行状态"
+
+msgid "RUNNING"
+msgstr "运行中"
+
+msgid "NOT RUNNING"
+msgstr "未运行"
+
+msgid "Transparent Proxy"
+msgstr "透明代理"
+
+msgid "Global Setting"
+msgstr "服务配置"
+
+msgid "Current Server"
+msgstr "当前服务器"
+
+msgid "Default"
+msgstr "默认"
+
+msgid "Proxy Mode"
+msgstr "代理模式"
+
+msgid "No Proxy"
+msgstr "不代理"
+
+msgid "Global Proxy"
+msgstr "全局代理"
+
+msgid "GFW List"
+msgstr "GFW名单"
+
+msgid "China WhiteList"
+msgstr "大陆白名单"
+
+msgid "Game Mode"
+msgstr "游戏模式"
+
+msgid "DNS Forward Mode"
+msgstr "DNS转发模式"
+
+msgid "DNS Forward Address"
+msgstr "DNS转发地址"
+
+msgid "Servers List"
+msgstr "服务器列表"
+
+msgid "Server Address"
+msgstr "服务器地址"
+
+msgid "Server Port"
+msgstr "服务器端口"
+
+msgid "Redir Port"
+msgstr "本地端口"
+
+msgid "Socks5 Port"
+msgstr "代理端口"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Encrypt Method"
+msgstr "加密方式"
+
+msgid "Speed Mode"
+msgstr "速度模式"
+
+msgid "Send Window"
+msgstr "发送窗口"
+
+msgid "Recv Window"
+msgstr "接收窗口"
+
+msgid "Data Compression"
+msgstr "数据压缩"
+
+msgid "Ping Latency"
+msgstr "Ping 延迟"
+
+msgid "Kcptun ACLs"
+msgstr "Kcptun 访问控制"
+
+msgid "ACLs is a tools which used to designate specific IP proxy mode"
+msgstr "访问控制列表是用于指定特殊IP代理模式的工具"
+
+msgid "IP Address"
+msgstr "内部IP地址"
+

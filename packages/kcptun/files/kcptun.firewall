@@ -1,0 +1,4 @@
+#!/bin/sh
+# kcptun integration for firewall3
+
+/etc/init.d/kcptun reload

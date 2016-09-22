@@ -1,0 +1,209 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
+
+START=90
+STOP=15
+
+CONFIG=shadowsocks
+CONFIG_FILE=/var/etc/$CONFIG.json
+
+uci_get_by_name() {
+	local ret=$(uci get $CONFIG.$1.$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+uci_get_by_type() {
+	local index=0
+	if [ -n $4 ]; then
+		index=$4
+	fi
+	local ret=$(uci get $CONFIG.@$1[$index].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+gen_config_file() {
+	cat <<-EOF >$CONFIG_FILE
+		{
+		    "server": "$(uci_get_by_name $1 server)",
+		    "server_port": $(uci_get_by_name $1 server_port),
+		    "local_address": "0.0.0.0",
+		    "local_port": $(uci_get_by_name $1 local_port),
+		    "password": "$(uci_get_by_name $1 password)",
+		    "timeout": $(uci_get_by_name $1 timeout 60),
+		    "method": "$(uci_get_by_name $1 encrypt_method)"
+		}
+EOF
+}
+
+load_config() {
+	GLOBAL_SERVER=$(uci_get_by_type global global_server nil)
+	if [ $GLOBAL_SERVER == "nil" ]; then
+		return 1
+	fi
+	PROXY_MODE=$(uci_get_by_type global proxy_mode gfwlist)
+	DNS_MODE=$(uci_get_by_type global dns_mode ss-tunnel)
+	DNS_FORWARD=$(uci_get_by_type global dns_forward 8.8.8.8:53)
+	
+	LOCAL_PORT=$(uci_get_by_name $GLOBAL_SERVER local_port)
+	case "$(uci_get_by_name $GLOBAL_SERVER auth_enable)" in
+		1|on|true|yes|enabled) ARG_OTA="-A";;
+		*) ARG_OTA="";;
+	esac
+	gen_config_file $GLOBAL_SERVER
+	return 0
+}
+
+start_redir() {
+	mkdir -p /var/run /var/etc
+	/usr/bin/ss-redir \
+	-c $CONFIG_FILE $ARG_OTA \
+	-u \
+	-f /var/run/ss-redir.pid
+}
+
+start_dns() {
+	case "$DNS_MODE" in
+		ss-tunnel)
+			/usr/bin/ss-tunnel \
+			-c $CONFIG_FILE $ARG_OTA ${ARG_UDP:="-u"} \
+			-l 5300 \
+			-L $DNS_FORWARD \
+			-f /var/run/ss-tunnel.pid
+		;;
+		dns2socks)
+			/usr/bin/ss-local \
+			-c $CONFIG_FILE $ARG_OTA \
+			-f /var/run/ss-local.pid \
+			-l 1081
+			/usr/bin/dns2socks \
+			127.0.0.1:1081 \
+			$DNS_FORWARD \
+			127.0.0.1:5300 \
+			>/dev/null 2>&1 &
+		;;
+	esac
+}
+
+get_action_chain() {
+	case "$1" in
+		disable)
+			echo "RETURN"
+		;;
+		global)
+			echo "SHADOWSOCKS_GLO"
+		;;
+		gfwlist)
+			echo "SHADOWSOCKS_GFW"
+		;;
+		chnroute)
+			echo "SHADOWSOCKS_CHN"
+		;;
+		gamemode)
+			echo "SHADOWSOCKS_GAM"
+		;;
+	esac
+}
+
+add_rule() {
+	#创建所需的ipset
+	IPSET_GFW="vpn"
+	IPSET_CHN="chnroute"
+	IPSET_CDN="cdn"
+	ipset -! create $IPSET_GFW iphash
+	ipset -! create $IPSET_CDN iphash
+	ipset -! create $IPSET_CHN nethash && ipset flush $IPSET_CHN
+	sed -e "s/^/add $IPSET_CHN &/g" /usr/share/shadowsocks/chnroute.txt | awk '{print $0} END{print "COMMIT"}' | ipset -R
+	#生成代理规则
+	#  忽略特殊IP段
+	iptables -t nat -N SHADOWSOCKS
+	iptables -t nat -I PREROUTING -j SHADOWSOCKS
+	iptables -t nat -A SHADOWSOCKS -d 0.0.0.0/8 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 10.0.0.0/8 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 127.0.0.0/8 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 169.254.0.0/16 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 172.16.0.0/12 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 192.168.0.0/16 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 224.0.0.0/4 -j RETURN
+	iptables -t nat -A SHADOWSOCKS -d 240.0.0.0/4 -j RETURN
+	#  生成对应CHAIN
+	iptables -t nat -N SHADOWSOCKS_GLO
+	iptables -t nat -A SHADOWSOCKS_GLO -p tcp -j REDIRECT --to $LOCAL_PORT
+	iptables -t nat -N SHADOWSOCKS_GFW
+	iptables -t nat -A SHADOWSOCKS_GFW -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $LOCAL_PORT
+	iptables -t nat -N SHADOWSOCKS_CHN
+	iptables -t nat -A SHADOWSOCKS_CHN -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $LOCAL_PORT
+	iptables -t nat -A SHADOWSOCKS_CHN -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $LOCAL_PORT
+	#  游戏模式
+	iptables -t nat -N SHADOWSOCKS_GAM
+	iptables -t nat -A SHADOWSOCKS_GAM -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $LOCAL_PORT
+	ip route add local 0.0.0.0/0 dev lo table 100
+	ip rule add fwmark 0x01/0x01 table 100
+	iptables -t mangle -N SHADOWSOCKS
+	iptables -t mangle -I PREROUTING -j SHADOWSOCKS
+	iptables -t mangle -A SHADOWSOCKS -d 0.0.0.0/8 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 10.0.0.0/8 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 127.0.0.0/8 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 169.254.0.0/16 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 172.16.0.0/12 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 192.168.0.0/16 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 224.0.0.0/4 -j RETURN
+	iptables -t mangle -A SHADOWSOCKS -d 240.0.0.0/4 -j RETURN
+	iptables -t mangle -N SHADOWSOCKS_GAM
+	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set --match-set $IPSET_GFW dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
+	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
+	#  加载ACLS
+	for i in $(seq 0 100)
+	do
+		local ip=$(uci_get_by_type acl_rule ipaddr '' $i)
+		local mode=$(uci_get_by_type acl_rule proxy_mode '' $i)
+		if [ -z $ip ] || [ -z $mode ]; then
+			break
+		fi
+		iptables -t nat -A SHADOWSOCKS -s $ip -j $(get_action_chain $mode)
+		iptables -t nat -A SHADOWSOCKS -s $ip -j RETURN
+		if [ "$mode" == "gamemode" ]; then
+			iptables -t mangle -A SHADOWSOCKS -s $ip -j $(get_action_chain $mode)
+			iptables -t mangle -A SHADOWSOCKS -s $ip -j RETURN
+		fi
+	done
+	#  加载默认代理模式
+	iptables -t nat -A SHADOWSOCKS -j $(get_action_chain $PROXY_MODE)
+	if [ "$PROXY_MODE" == "gamemode" ]; then
+		iptables -t mangle -A SHADOWSOCKS -j $(get_action_chain $PROXY_MODE)
+	fi
+}
+
+del_rule() {
+	iptables -t nat -D PREROUTING -j SHADOWSOCKS
+	iptables -t nat -F SHADOWSOCKS && iptables -t nat -X SHADOWSOCKS
+	iptables -t nat -F SHADOWSOCKS_GLO && iptables -t nat -X SHADOWSOCKS_GLO
+	iptables -t nat -F SHADOWSOCKS_GFW && iptables -t nat -X SHADOWSOCKS_GFW
+	iptables -t nat -F SHADOWSOCKS_CHN && iptables -t nat -X SHADOWSOCKS_CHN
+	iptables -t nat -F SHADOWSOCKS_GAM && iptables -t nat -X SHADOWSOCKS_GAM
+	iptables -t mangle -D PREROUTING -j SHADOWSOCKS
+	iptables -t mangle -F SHADOWSOCKS && iptables -t mangle -X SHADOWSOCKS
+	iptables -t mangle -F SHADOWSOCKS_GAM && iptables -t mangle -X SHADOWSOCKS_GAM
+	ip rule del fwmark 0x01/0x01 table 100
+	ip route del local 0.0.0.0/0 table 100
+}
+
+start() {
+	! load_config && exit 0
+	start_redir
+	start_dns
+	add_rule
+}
+
+stop() {
+	del_rule
+	killall -q -9 ss-redir
+	killall -q -9 ss-tunnel
+	killall -q -9 ss-local
+	killall -q -9 dns2socks
+}

@@ -1,0 +1,13 @@
+#!/bin/sh
+
+uci -q batch <<-EOT
+	delete firewall.adbyby
+	set firewall.adbyby=include
+	set firewall.adbyby.type=script
+	set firewall.adbyby.path=/usr/share/adbyby/firewall.include
+	set firewall.adbyby.family=any
+	set firewall.adbyby.reload=1
+	commit firewall
+EOT
+
+exit 0
