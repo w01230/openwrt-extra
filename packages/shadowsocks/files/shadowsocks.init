@@ -87,6 +87,14 @@ start_dns() {
 			127.0.0.1:5300 \
 			>/dev/null 2>&1 &
 		;;
+		pdnsd)
+			/etc/init.d/dnscrypt-proxy stop
+			/etc/init.d/pdnsd restart
+		;;
+		dnscrypt-proxy)
+			/etc/init.d/pdnsd stop
+			/etc/init.d/dnscrypt-proxy restart
+		;;
 	esac
 }
 
@@ -112,7 +120,7 @@ get_action_chain() {
 
 add_rule() {
 	#创建所需的ipset
-	IPSET_GFW="vpn"
+	IPSET_GFW="gfw"
 	IPSET_CHN="chnroute"
 	IPSET_CDN="cdn"
 	ipset -! create $IPSET_GFW iphash
@@ -206,4 +214,6 @@ stop() {
 	killall -q -9 ss-tunnel
 	killall -q -9 ss-local
 	killall -q -9 dns2socks
+	killall -q -9 pdnsd
+	killall -q -9 dnscrypt-proxy
 }

@@ -2,7 +2,7 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
 msgid "Adbyby"
-msgstr "Adbyby"
+msgstr "广告屏蔽"
 
 msgid "A powerful advertisement blocker"
 msgstr "一个强大的广告屏蔽工具"

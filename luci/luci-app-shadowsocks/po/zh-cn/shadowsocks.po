@@ -1,10 +1,13 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "ShadowSocks"
-msgstr "ShadowSocks"
+msgid "shadowsocks"
+msgstr "shadowsocks"
 
-msgid "A lightweight secured SOCKS5 proxy"
+msgid "shadowsocks server"
+msgstr "shadowsocks 服务配"
+
+msgid "A lightweight secured socks5 proxy"
 msgstr "一个轻量级安全SOCKS5代理"
 
 msgid "Enable"
@@ -38,13 +41,13 @@ msgid "Proxy Mode"
 msgstr "代理模式"
 
 msgid "No Proxy"
-msgstr "不代理"
+msgstr "关闭代理"
 
 msgid "Global Proxy"
 msgstr "全局代理"
 
 msgid "GFW List"
-msgstr "GFW名单"
+msgstr "GFW黑名单"
 
 msgid "China WhiteList"
 msgstr "大陆白名单"
@@ -85,8 +88,8 @@ msgstr "加密方式"
 msgid "Ping Latency"
 msgstr "Ping 延迟"
 
-msgid "ShadowSocks ACLs"
-msgstr "ShadowSocks 访问控制"
+msgid "shadowsocks ACLs"
+msgstr "shadowsocks 访问控制"
 
 msgid "ACLs is a tools which used to designate specific IP proxy mode"
 msgstr "访问控制列表是用于指定特殊IP代理模式的工具"

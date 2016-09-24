@@ -1,5 +1,5 @@
 --[[
-openwrt-dist-luci: ShadowSocks
+openwrt-dist-luci: shadowsocks
 ]]--
 
 local shadowsocks = "shadowsocks"
@@ -34,14 +34,14 @@ end
 
 arg[1] = arg[1] or ""
 
-m = Map(shadowsocks, translate("ShadowSocks Server Config"))
+m = Map(shadowsocks, translate("shadowsocks server"))
 m.redirect = ds.build_url("admin", "services", "shadowsocks")
 
 s = m:section(NamedSection, arg[1], "servers", "")
 s.addremove = false
 s.dynamic = false
 
-o = s:option(Flag, "auth_enable", translate("Onetime Authentication"))
+o = s:option(Flag, "auth_enable", translate("Onetime authentication"))
 o.rmempty = false
 
 o = s:option(Value, "server", translate("Server Address"))
