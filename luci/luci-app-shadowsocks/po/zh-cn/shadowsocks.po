@@ -1,13 +1,13 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "shadowsocks"
-msgstr "shadowsocks"
+msgid "Shadowsocks"
+msgstr "Shadowsocks"
 
-msgid "shadowsocks server"
-msgstr "shadowsocks 服务配"
+msgid "Shadowsocks server"
+msgstr "Shadowsocks 服务器"
 
-msgid "A lightweight secured socks5 proxy"
+msgid "A lightweight secured SOCKS5 proxy"
 msgstr "一个轻量级安全SOCKS5代理"
 
 msgid "Enable"
@@ -64,7 +64,7 @@ msgstr "DNS转发地址"
 msgid "Servers List"
 msgstr "服务器列表"
 
-msgid "Onetime Authentication"
+msgid "Onetime authentication"
 msgstr "单次验证"
 
 msgid "Server Address"
@@ -88,8 +88,8 @@ msgstr "加密方式"
 msgid "Ping Latency"
 msgstr "Ping 延迟"
 
-msgid "shadowsocks ACLs"
-msgstr "shadowsocks 访问控制"
+msgid "Shadowsocks ACLs"
+msgstr "Shadowsocks 访问控制"
 
 msgid "ACLs is a tools which used to designate specific IP proxy mode"
 msgstr "访问控制列表是用于指定特殊IP代理模式的工具"

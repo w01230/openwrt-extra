@@ -34,7 +34,7 @@ end
 
 arg[1] = arg[1] or ""
 
-m = Map(shadowsocks, translate("shadowsocks server"))
+m = Map(shadowsocks, translate("Shadowsocks server"))
 m.redirect = ds.build_url("admin", "services", "shadowsocks")
 
 s = m:section(NamedSection, arg[1], "servers", "")
