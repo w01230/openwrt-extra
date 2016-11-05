@@ -39,7 +39,7 @@ define Package/shadowsocks/Default
 	DEPENDS:=$(3)
 endef
 
-Package/shadowsocks = $(call Package/shadowsocks/Default,openssl,(OpenSSL),+libopenssl +libpthread +ipset +ip +iptables-mod-tproxy)
+Package/shadowsocks = $(call Package/shadowsocks/Default,openssl,(OpenSSL),+libopenssl +libpthread +ipset +ip +iptables-mod-tproxy +zlib)
 Package/shadowsocks-polarssl = $(call Package/shadowsocks/Default,polarssl,(PolarSSL),+libpolarssl +libpthread +ipset +ip +iptables-mod-tproxy)
 Package/shadowsocks-mbedtls = $(call Package/shadowsocks/Default,mbedtls,(mbedTLS),+libmbedtls +libpthread +ipset +ip +iptables-mod-tproxy)
 
