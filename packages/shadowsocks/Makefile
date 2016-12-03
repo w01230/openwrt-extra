@@ -14,7 +14,7 @@ PKG_RELEASE=1
 
 PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev/archive/
 PKG_SOURCE:=v$(PKG_VERSION).tar.gz
-PKG_MD5SUM:=8dbde3cc317d437d56a4d807b8eabf02
+PKG_MD5SUM:=8b300e5732a594245fa9c08fd7fbf738
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=LICENSE
@@ -36,12 +36,12 @@ define Package/shadowsocks/Default
 	TITLE:=Lightweight Secured Socks5 Proxy $(2)
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
 	VARIANT:=$(1)
-	DEPENDS:=+libpthread +libpcre +ipset +ip +iptables-mod-tproxy $(3)
+	DEPENDS:=$(3)
 endef
 
-Package/shadowsocks = $(call Package/shadowsocks/Default,openssl,(OpenSSL),+libopenssl, +zlib)
-Package/shadowsocks-polarssl = $(call Package/shadowsocks/Default,polarssl,(PolarSSL),+libpolarssl)
-Package/shadowsocks-mbedtls = $(call Package/shadowsocks/Default,mbedtls,(mbedTLS),+libmbedtls)
+Package/shadowsocks = $(call Package/shadowsocks/Default,openssl,(OpenSSL),+libopenssl +libpthread +ipset +ip +iptables-mod-tproxy +libpcre +zlib)
+Package/shadowsocks-polarssl = $(call Package/shadowsocks/Default,polarssl,(PolarSSL),+libpolarssl +libpthread +ipset +ip +iptables-mod-tproxy)
+Package/shadowsocks-mbedtls = $(call Package/shadowsocks/Default,mbedtls,(mbedTLS),+libmbedtls +libpthread +ipset +ip +iptables-mod-tproxy)
 
 define Package/shadowsocks/description
 shadowsocks is a lightweight secured socks5 proxy for embedded devices and low end boxes.
@@ -56,7 +56,7 @@ endef
 
 Package/shadowsocks-polarssl/conffiles = $(Package/shadowsocks/conffiles)
 
-CONFIGURE_ARGS += --disable-ssp --disable-documentation --disable-assert
+CONFIGURE_ARGS += --disable-documentation --disable-ssp
 
 ifeq ($(BUILD_VARIANT),polarssl)
 	CONFIGURE_ARGS += --with-crypto-library=polarssl
@@ -70,7 +70,7 @@ define Package/shadowsocks/install
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/usr/share/shadowsocks $(1)/etc/config
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ss-{redir,tunnel,local} $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/shadowsocks.init $(1)/etc/init.d/shadowsocks
-	$(INSTALL_DATA) ./files/shadowsocks.defaults $(1)/etc/uci-defaults/95-shadowsocks
+	$(INSTALL_DATA) ./files/shadowsocks.defaults $(1)/etc/uci-defaults/96-shadowsocks
 	$(INSTALL_DATA) ./files/shadowsocks.firewall $(1)/usr/share/shadowsocks/firewall.include
 	$(INSTALL_DATA) ./files/chnroute.txt $(1)/usr/share/shadowsocks/
 	$(INSTALL_DATA) ./files/shadowsocks.config $(1)/etc/config/shadowsocks
