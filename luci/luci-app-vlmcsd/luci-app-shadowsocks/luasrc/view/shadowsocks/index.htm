@@ -1,0 +1,26 @@
+<%#
+ Copyright 2016 Chen RuiWei <crwbak@gmail.com>
+ Licensed to the public under the Apache License 2.0.
+-%>
+
+<% include("cbi/map") %>
+<script type="text/javascript">//<![CDATA[
+	XHR.poll(2, '<%=luci.dispatcher.build_url("admin", "services", "shadowsocks", "status")%>', null,
+		function(x, result)
+		{
+			var status = document.getElementsByClassName('shadowsocks_status');
+			status[0].innerHTML = result.ss_redir?'<%=translate("RUNNING")%>':'<%=translate("NOT RUNNING")%>';
+		}
+	);
+	var pings = document.getElementsByClassName('pingtime');
+	for(var i = 0; i<pings.length; i++)
+	{
+		XHR.poll(2, '<%=luci.dispatcher.build_url("admin", "services", "shadowsocks", "ping")%>', {index: i, domain: pings[i].getAttribute("hint")},
+			function(x, result)
+			{
+				pings[result.index].innerHTML = (result.ping?result.ping:"--") + " ms";
+			}
+		);
+	}
+//]]>
+</script>

@@ -1,47 +1,56 @@
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
+
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=vlmcsd
-PKG_VERSION=svn1016
-PKG_RELEASE:=1
-
-PKG_MAINTAINER:=fuyumi <280604399@qq.com>
-PKG_LICENSE:=MIT
-PKG_LICENSE_FILES:=LICENSE
+PKG_VERSION:=svn1099
+PKG_RELEASE=2016-10-25
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/w01230/vlmcsd.git
-PKG_SOURCE_VERSION:=09d67c2e07fc67dbd6046d81d147f71e7f52c6a2
+PKG_SOURCE_URL:=https://github.com/Wind4/vlmcsd.git
+PKG_SOURCE_VERSION:=fcbbc40d60e10e6db0134d25861be036e0f433bc
 
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)
-PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.gz
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_SOURCE_SUBDIR)
+PKG_LICENSE:=GPLv3
+PKG_LICENSE_FILES:=LICENSE
+PKG_MAINTAINER:=Chen RuiWei <crwbak@gmail.com>
+
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/vlmcsd
-#	SECTION:=net
+	SECTION:=net
 	CATEGORY:=Extra packages
 	TITLE:=vlmcsd for OpenWRT
-	URL:=http://forums.mydigitallife.info/threads/50234
+	URL:=https://github.com/Wind4/vlmcsd
 	DEPENDS:=+libpthread
 endef
 
 define Package/vlmcsd/description
-	vlmcsd is a KMS Emulator in C.
+vlmcsd is a KMS Emulator in C.
 endef
 
-MAKE_FLAGS += \
-	-C $(PKG_BUILD_DIR)
+define Package/vlmcsd/conffiles
+/etc/config/vlmcsd
+endef
+
+MAKE_FLAGS += -C $(PKG_BUILD_DIR)
 
 define Package/vlmcsd/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/vlmcsd $(1)/usr/bin/vlmcsd
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/vlmcs $(1)/usr/bin/vlmcs
-	$(INSTALL_DIR) $(1)/etc
-	$(INSTALL_BIN) ./files/vlmcsd.ini $(1)/etc/vlmcsd.ini
-	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/usr/share/vlmcsd $(1)/etc/config
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/vlmcsd $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/vlmcsd.init $(1)/etc/init.d/vlmcsd
+	$(INSTALL_DATA) ./files/vlmcsd.ini $(1)/usr/share/vlmcsd/
+	$(INSTALL_DATA) ./files/vlmcsd.config $(1)/etc/config/vlmcsd
 endef
 
 $(eval $(call BuildPackage,vlmcsd))

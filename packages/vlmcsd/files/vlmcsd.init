@@ -1,31 +1,36 @@
 #!/bin/sh /etc/rc.common
-# Copyright (c) 2011-2015 OpenWrt.org
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
 
-START=90
+START=99
+STOP=10
 
-start(){
-	if [ ! -f "/tmp/vlmcsd.pid" ]; then
-		/usr/bin/vlmcsd -i /etc/vlmcsd.ini -p /tmp/vlmcsd.pid -l syslog -L 0.0.0.0:1688
-		echo "KMS Server has started."
+get_config()
+{
+	config_get_bool enable $1 enable 0
+	config_get port $1 port 1688
+	config_get_bool use_conf_file $1 use_conf_file 0
+}
+
+start()
+{
+	config_load vlmcsd
+	config_foreach get_config vlmcsd
+	[ $enable -ne 1 ] && exit 0
+	
+	if [ $use_conf_file -ne 1 ]; then
+		/usr/bin/vlmcsd -d -P $port -l /var/log/vlmcsd.log
 	else
-		echo "KMS Server has already started."
+		/usr/bin/vlmcsd -i /usr/share/vlmcsd/vlmcsd.ini
 	fi
 }
 
-stop(){
-	if [ ! -f "/tmp/vlmcsd.pid" ]; then
-		echo "KMS Server is not running."
-	else
-		pid=`cat /tmp/vlmcsd.pid`
-		kill $pid
-		rm -f /tmp/vlmcsd.pid
-		echo "KMS Server has stopped."
-	fi
-}
-
-restart(){
-	stop
-	sleep 1
-	start
-	echo "KMS Server has restarted."
+stop()
+{
+	kill -9 $(ps|grep '/usr/bin/vlmcsd'|grep -v 'grep'|awk '{print$1}') >/dev/null
 }

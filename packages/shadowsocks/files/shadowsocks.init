@@ -7,7 +7,7 @@
 # See /LICENSE for more information.
 #
 
-START=90
+START=95
 STOP=15
 
 CONFIG=shadowsocks
@@ -25,6 +25,14 @@ uci_get_by_type() {
 	fi
 	local ret=$(uci get $CONFIG.@$1[$index].$2 2>/dev/null)
 	echo ${ret:=$3}
+}
+
+factor(){
+	if [ -z "$1" ] || [ -z "$2" ]; then
+		echo ""
+	else
+		echo "$2 $1"
+	fi
 }
 
 gen_config_file() {
@@ -118,6 +126,17 @@ get_action_chain() {
 	esac
 }
 
+get_jump_mode(){
+	case "$1" in
+		disable)
+			echo "j"
+		;;
+		*)
+			echo "g"
+		;;
+	esac
+}
+
 add_rule() {
 	#创建所需的ipset
 	IPSET_GFW="gfw"
@@ -127,6 +146,7 @@ add_rule() {
 	ipset -! create $IPSET_CDN iphash
 	ipset -! create $IPSET_CHN nethash && ipset flush $IPSET_CHN
 	sed -e "s/^/add $IPSET_CHN &/g" /usr/share/shadowsocks/chnroute.txt | awk '{print $0} END{print "COMMIT"}' | ipset -R
+
 	#生成代理规则
 	#  忽略特殊IP段
 	iptables -t nat -N SHADOWSOCKS
@@ -166,18 +186,19 @@ add_rule() {
 	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set --match-set $IPSET_GFW dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
 	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
 	#  加载ACLS
-	for i in $(seq 0 100)
+	for i in $(seq 0 1000)
 	do
 		local ip=$(uci_get_by_type acl_rule ipaddr '' $i)
 		local mode=$(uci_get_by_type acl_rule proxy_mode '' $i)
-		if [ -z $ip ] || [ -z $mode ]; then
+		local ports=$(uci_get_by_type acl_rule ports '' $i)
+		if [ -z "$mode" ]; then
 			break
 		fi
-		iptables -t nat -A SHADOWSOCKS -s $ip -j $(get_action_chain $mode)
-		iptables -t nat -A SHADOWSOCKS -s $ip -j RETURN
-		if [ "$mode" == "gamemode" ]; then
-			iptables -t mangle -A SHADOWSOCKS -s $ip -j $(get_action_chain $mode)
-			iptables -t mangle -A SHADOWSOCKS -s $ip -j RETURN
+		if [ -n "$ip" ] || [ -n "$ports" ]; then
+			iptables -t nat -A SHADOWSOCKS $(factor $ip "-s") $(factor $ports "-p tcp -m multiport --dport") -$(get_jump_mode $mode) $(get_action_chain $mode)
+			if [ "$mode" == "gamemode" ]; then
+				iptables -t mangle -A SHADOWSOCKS $(factor $ip "-s") $(factor $ports "-p tcp -m multiport --dport") -$(get_jump_mode $mode) $(get_action_chain $mode)
+			fi
 		fi
 	done
 	#  加载默认代理模式
@@ -188,21 +209,23 @@ add_rule() {
 }
 
 del_rule() {
-	iptables -t nat -D PREROUTING -j SHADOWSOCKS
-	iptables -t nat -F SHADOWSOCKS && iptables -t nat -X SHADOWSOCKS
-	iptables -t nat -F SHADOWSOCKS_GLO && iptables -t nat -X SHADOWSOCKS_GLO
-	iptables -t nat -F SHADOWSOCKS_GFW && iptables -t nat -X SHADOWSOCKS_GFW
-	iptables -t nat -F SHADOWSOCKS_CHN && iptables -t nat -X SHADOWSOCKS_CHN
-	iptables -t nat -F SHADOWSOCKS_GAM && iptables -t nat -X SHADOWSOCKS_GAM
-	iptables -t mangle -D PREROUTING -j SHADOWSOCKS
-	iptables -t mangle -F SHADOWSOCKS && iptables -t mangle -X SHADOWSOCKS
-	iptables -t mangle -F SHADOWSOCKS_GAM && iptables -t mangle -X SHADOWSOCKS_GAM
-	ip rule del fwmark 0x01/0x01 table 100
-	ip route del local 0.0.0.0/0 table 100
+	iptables -t nat -D PREROUTING -j SHADOWSOCKS 2>/dev/null
+	iptables -t nat -F SHADOWSOCKS 2>/dev/null && iptables -t nat -X SHADOWSOCKS 2>/dev/null
+	iptables -t nat -F SHADOWSOCKS_GLO 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GLO 2>/dev/null
+	iptables -t nat -F SHADOWSOCKS_GFW 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GFW 2>/dev/null
+	iptables -t nat -F SHADOWSOCKS_CHN 2>/dev/null && iptables -t nat -X SHADOWSOCKS_CHN 2>/dev/null
+	iptables -t nat -F SHADOWSOCKS_GAM 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GAM 2>/dev/null
+	iptables -t mangle -D PREROUTING -j SHADOWSOCKS 2>/dev/null
+	iptables -t mangle -F SHADOWSOCKS 2>/dev/null && iptables -t mangle -X SHADOWSOCKS 2>/dev/null
+	iptables -t mangle -F SHADOWSOCKS_GAM 2>/dev/null && iptables -t mangle -X SHADOWSOCKS_GAM 2>/dev/null
+	ip rule del fwmark 0x01/0x01 table 100 2>/dev/null
+	ip route del local 0.0.0.0/0 table 100 2>/dev/null
 }
 
 start() {
 	! load_config && exit 0
+	#避免重复开启服务
+	iptables -t nat -C PREROUTING -j SHADOWSOCKS 2>/dev/null && [ $? -eq 0 ] && exit 0;
 	start_redir
 	start_dns
 	add_rule
