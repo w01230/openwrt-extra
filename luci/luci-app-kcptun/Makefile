@@ -9,6 +9,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Support for Kcptun
 LUCI_DEPENDS:=+kcptun
+LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
