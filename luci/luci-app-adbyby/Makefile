@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Support for Adbyby
-LUCI_DEPENDS:=
+LUCI_DEPENDS:=+adbyby
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

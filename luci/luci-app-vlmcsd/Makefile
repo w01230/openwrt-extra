@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Support for vlmcsd
-LUCI_DEPENDS:=
+LUCI_DEPENDS:=+vlmcsd
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
