@@ -1,0 +1,13 @@
+#!/bin/sh
+
+uci -q batch <<-EOT
+	delete firewall.koolproxy
+	set firewall.koolproxy=include
+	set firewall.koolproxy.type=script
+	set firewall.koolproxy.path=/usr/share/koolproxy/firewall.include
+	set firewall.koolproxy.family=any
+	set firewall.koolproxy.reload=1
+	commit firewall
+EOT
+
+exit 0
