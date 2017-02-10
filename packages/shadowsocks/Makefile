@@ -14,7 +14,7 @@ PKG_RELEASE=1
 
 PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev/archive/
 PKG_SOURCE:=v$(PKG_VERSION).tar.gz
-PKG_MD5SUM:=8b300e5732a594245fa9c08fd7fbf738
+PKG_MD5SUM:=8dbde3cc317d437d56a4d807b8eabf02
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=LICENSE
