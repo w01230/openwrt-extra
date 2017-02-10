@@ -9,8 +9,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=koolproxy
-PKG_VERSION:=3.3
-PKG_RELEASE=20170211
+PKG_VERSION:=3.3.1
+PKG_RELEASE=0
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=LICENSE
@@ -47,22 +47,22 @@ define Package/koolproxy/install
 	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 ifeq ($(ARCH),arm)
-	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),aarch64)
-	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mips)
-	$(INSTALL_BIN) ./files/binary/mips $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/binary/mips $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mipsel)
-	$(INSTALL_BIN) ./files/binary/mipsel $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/binary/mipsel $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),i386)
-	$(INSTALL_BIN) ./files/binary/i386 $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/binary/i386 $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),x86_64)
-	$(INSTALL_BIN) ./files/x86_64 $(1)/usr/share/koolproxy/
+	$(INSTALL_BIN) ./files/x86_64 $(1)/usr/share/koolproxy/koolproxy
 endif
 	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
 	$(INSTALL_DATA) ./files/koolproxy.defaults $(1)/etc/uci-defaults/95-koolproxy

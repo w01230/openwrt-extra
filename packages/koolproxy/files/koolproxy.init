@@ -123,7 +123,7 @@ start() {
 
 	iptables -t nat -C PREROUTING -j KOOLPROXY 2>/dev/null && [ $? -eq 0 ] && exit 0;
 	
-	/usr/share/koolproxy/koolproxy >/dev/null 2>&1 &
+	/usr/share/koolproxy/koolproxy -d >/dev/null 2>&1 &
 	add_rule
 }
 

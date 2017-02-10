@@ -64,10 +64,10 @@ o = s:option(ListValue, "filter_mode", translate('Default')..translate("Filter M
 o.default = "global"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("http", translate("http Filter"))
+o:value("http", translate("Http Filter"))
 o:value("global", translate("Global Filter"))
 
-s = m:section(TypedSection, "acl_rule", translate("koolproxy ACLs"),
+s = m:section(TypedSection, "acl_rule", translate("Koolproxy ACLs"),
 	translate("ACLs is a tools which used to designate specific IP filter mode"))
 s.template  = "cbi/tblsection"
 s.sortable  = true
@@ -85,7 +85,7 @@ o.width = "40%"
 o.default = "disable"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("http", translate("http Filter"))
-o:value("global", translate("Global Filter")))
+o:value("http", translate("Http Filter"))
+o:value("global", translate("Global Filter"))
 
 return m
