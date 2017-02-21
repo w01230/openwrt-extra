@@ -109,6 +109,7 @@ add_rule() {
 	done
 	
 	iptables -t nat -A KOOLPROXY -j $(get_action_chain $GLOBAL_MODE)
+	iptables -t nat -A KOOLPROXY_HTTPS -p tcp -d 110.110.110.110 --dport 80 -j REDIRECT --to-port $LOCAL_PORT
 }
 
 del_rule() {
