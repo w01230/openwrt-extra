@@ -67,9 +67,9 @@ ifeq ($(BUILD_VARIANT),mbedtls)
 endif
 
 define Package/shadowsocks/install
-	$(CP) ./files/dnsmasq.d $(1)/etc/
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/usr/share/shadowsocks $(1)/etc/config $(1)/etc
+	$(CP) ./files/common/* $(1)/etc/
 	$(CP) ./files/dnsmasq.conf $(1)/etc/dnsmasq.conf
-	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/usr/share/shadowsocks $(1)/etc/config
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ss-{redir,tunnel,local} $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/shadowsocks.init $(1)/etc/init.d/shadowsocks
 	$(INSTALL_DATA) ./files/shadowsocks.defaults $(1)/etc/uci-defaults/96-shadowsocks
