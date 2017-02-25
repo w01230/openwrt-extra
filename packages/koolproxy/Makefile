@@ -55,11 +55,11 @@ ifeq ($(ARCH),aarch64)
 	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mips)
-#	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mips -P ./files/binary/
+	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mips -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mips $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mipsel)
-#	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mipsel -P ./files/binary/
+	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mipsel -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mipsel $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),i386)
