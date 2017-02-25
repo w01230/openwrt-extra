@@ -47,22 +47,28 @@ define Package/koolproxy/install
 	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 ifeq ($(ARCH),arm)
+	wget http://firmware.koolshare.cn/binary/KoolProxy/arm -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),aarch64)
+	wget http://firmware.koolshare.cn/binary/KoolProxy/arm -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mips)
+#	wget http://firmware.koolshare.cn/binary/KoolProxy/mips -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mips $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mipsel)
+#	wget http://firmware.koolshare.cn/binary/KoolProxy/mipsel -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mipsel $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),i386)
+	wget http://firmware.koolshare.cn/binary/KoolProxy/i386 -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/i386 $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),x86_64)
-	$(INSTALL_BIN) ./files/x86_64 $(1)/usr/share/koolproxy/koolproxy
+	wget http://firmware.koolshare.cn/binary/KoolProxy/x86_64_ -P ./files/binary/
+	$(INSTALL_BIN) ./files/binary/x86_64 $(1)/usr/share/koolproxy/koolproxy
 endif
 	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
 	$(INSTALL_DATA) ./files/koolproxy.defaults $(1)/etc/uci-defaults/95-koolproxy
