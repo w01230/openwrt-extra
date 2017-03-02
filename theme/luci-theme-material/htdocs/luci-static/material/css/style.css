@@ -23,17 +23,17 @@
  */
 
 @font-face {
-	font-family: 'Roboto';
-	src: local('Roboto Medium'), local('Roboto-Medium'), url('../fonts/Roboto-Medium-webfont.woff') format('woff');
-	font-weight: 500;
-	font-style: normal;
+    font-family: 'Roboto';
+    src: local('Roboto Medium'), local('Roboto-Medium'), url('../fonts/Roboto-Medium-webfont.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
 }
 
 @font-face {
-	font-family: 'Roboto';
-	src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular'), url('../fonts/Roboto-Regular-webfont.woff') format('woff');
-	font-weight: normal;
-	font-style: normal;
+    font-family: 'Roboto';
+    src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular'), url('../fonts/Roboto-Regular-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
 }
 
 @font-face {
@@ -47,14 +47,14 @@
     font-style: normal;
 }
 @font-face {
-	font-family: "advancedtomato";
-	src:url("../fonts/advancedtomato.eot");
-	src:url("../fonts/advancedtomato.eot?#iefix") format("embedded-opentype"),
-		url("../fonts/advancedtomato.woff") format("woff"),
-		url("../fonts/advancedtomato.ttf") format("truetype"),
-		url("../fonts/advancedtomato.svg#advancedtomato") format("svg");
-	font-weight: normal;
-	font-style: normal;
+    font-family: "advancedtomato";
+    src:url("../fonts/advancedtomato.eot");
+    src:url("../fonts/advancedtomato.eot?#iefix") format("embedded-opentype"),
+        url("../fonts/advancedtomato.woff") format("woff"),
+        url("../fonts/advancedtomato.ttf") format("truetype"),
+        url("../fonts/advancedtomato.svg#advancedtomato") format("svg");
+    font-weight: normal;
+    font-style: normal;
 
 }
 .cbi-button-up,
@@ -63,7 +63,7 @@
 .showSide,
 .main > .loading > span {
     font-family: 'icomoon', Roboto !important;
-	font-size:10px;
+    font-size:10px;
     speak: none;
     font-style: normal !important;
     font-weight: normal !important;
@@ -86,7 +86,7 @@
     font-weight: 500;
     line-height: 1.1;
     color: inherit;
-	clear:both;
+    clear:both;
 }
 
 
@@ -100,14 +100,14 @@ html, body {
     padding: 0px;
     height: 100%;
     font-family: Roboto, 'Microsoft Yahei' !important;
-	font-size:10pt;
-	line-height: 150%;
-	color:#76838f;
-	min-width: 960px;
+    font-size:10pt;
+    line-height: 150%;
+    color:#76838f;
+    /*min-width: 960px;*/
 }
 
 body div {
-	line-height:150%;
+    line-height:150%;
 }
 
 a {
@@ -247,8 +247,8 @@ footer > a {
 .main-left {
     float: left;
     top: 4rem;
-    width: 240px;
-    height: 100%;
+    width: 17rem;
+    bottom: 0rem;
     background-color: #222222;
 
     overflow-x: auto;
@@ -269,12 +269,12 @@ footer > a {
 
 .pull-right {
     float: right;
-	margin-top:10px;
-	margin-right:10px;
+    margin-top:10px;
+    margin-right:10px;
 }
 
 .pull-right span {
-	font-size:11px !important;
+    font-size:11px !important;
 }
 
 .pull-left {
@@ -293,25 +293,26 @@ padding:0;
 
 header > .container > .brand {
     font-size: 28px;
-	line-height:60px;
+    line-height:60px;
     color: white;
     cursor: default;
-	background: #cc181e;
-	display:block;
-	width:240px;
-	height:60px;
-	text-align:center;
-	float:left;
-	font-weight:600;
-	letter-spacing:3px;
+    background: #cc181e;
+    display:block;
+    width:17rem;
+    padding-right: 10px;
+    height:60px;
+    text-align:center;
+    float:left;
+    font-weight:600;
+    letter-spacing:3px;
 }
 header > .container > a[class="brand"]:after {
     content:"®";
-	font-size:14px;
-	font-family:Tahoma;
-	position: absolute;
-	top:-10px;
-	font-weight:normal !important;
+    font-size:14px;
+    font-family:Tahoma;
+    position: absolute;
+    top:-10px;
+    font-weight:normal !important;
 }
 .warning {
     background-color: #FF7D60 !important;
@@ -374,7 +375,7 @@ header > .container > a[class="brand"]:after {
 
 .main > .main-left > .nav {
     margin-top: 2rem;
-	    font-size: 10pt;
+    font-size: 11pt;
 }
 
 .main > .main-left > .nav > li a {
@@ -383,8 +384,8 @@ header > .container > a[class="brand"]:after {
 }
 
 .main > .main-left > .nav > li:nth-last-child(1) {
-    font-size: 10pt;
-	height:40px;
+    font-size: 11pt;
+    height:40px;
 }
 
 .main > .main-left > .nav > li {
@@ -398,10 +399,10 @@ header > .container > a[class="brand"]:after {
     content: "\e026";
     display: inline-block;
     top: -1px;
-	left:-10px;
+    left:-10px;
     position: relative;
     vertical-align: middle;
-	display: inline-block;
+    display: inline-block;
     font-family: "advancedtomato" !important;
     font-style: normal !important;
     font-weight: normal !important;
@@ -414,10 +415,10 @@ header > .container > a[class="brand"]:after {
 .main > .main-left > .nav > .slide > a:before {
     display: inline-block;
     top: -1px;
-	left:-10px;
+    left:-10px;
     position: relative;
     vertical-align: middle;
-	display: inline-block;
+    display: inline-block;
     font-family: "advancedtomato" !important;
     font-style: normal !important;
     font-weight: normal !important;
@@ -448,17 +449,17 @@ header > .container > a[class="brand"]:after {
 }
 
 .main > .main-left > .nav > li > a[data-title="Logout"] {
-	padding-left:36px;
-	line-height:40px;
+    padding-left:36px;
+    line-height:40px;
 }
 .main > .main-left > .nav > li > a[data-title="Logout"]:before {
     content: "\e005";
-	display: inline-block;
+    display: inline-block;
     top: -1px;
-	left:-10px;
+    left:-10px;
     position: relative;
     vertical-align: middle;
-	display: inline-block;
+    display: inline-block;
     font-family: "advancedtomato" !important;
     font-style: normal !important;
     font-weight: normal !important;
@@ -470,17 +471,17 @@ header > .container > a[class="brand"]:after {
 }
 
 .main > .main-left > .nav > li > a[data-title="Reboot"] {
-	padding-left:36px;
-	line-height:40px;
+    padding-left:36px;
+    line-height:40px;
 }
 .main > .main-left > .nav > li > a[data-title="Reboot"]:before {
     content: "\e004";
-	display: inline-block;
+    display: inline-block;
     top: -1px;
-	left:-10px;
+    left:-10px;
     position: relative;
     vertical-align: middle;
-	display: inline-block;
+    display: inline-block;
     font-family: "advancedtomato" !important;
     font-style: normal !important;
     font-weight: normal !important;
@@ -492,7 +493,7 @@ header > .container > a[class="brand"]:after {
 }
 .main > .main-left > .nav > .slide > ul {
     display: none;
-	list-style:dotted;
+    list-style:dotted;
 }
 
 .main > .main-left > .nav > .slide > .menu {
@@ -511,12 +512,12 @@ header > .container > a[class="brand"]:after {
     background: none;
 }
 .slide-menu {
-	overflow:hidden;
-	}
+    overflow:hidden;
+    }
 .main > .main-left > .nav > .slide > .slide-menu > li {
     padding: 6px 50px;
-	font-size:12px !important;
-	position: relative;
+    font-size:12px !important;
+    position: relative;
 }
 
 .slide-menu li:before {
@@ -536,7 +537,7 @@ header > .container > a[class="brand"]:after {
 }
 
 .main > .main-left > .nav > .slide > .slide-menu > li > a {
-	position: relative;
+    position: relative;
     display: block;
     color: #969ba0;
     text-shadow: 0px 1px 3px #222;
@@ -584,7 +585,7 @@ h2 {
     margin: 15px 0 0 0;
     font-size: 16px;
     padding-bottom: 10px;
-	padding-left: 5px;
+    padding-left: 5px;
 }
 
 h3 {
@@ -618,7 +619,8 @@ fieldset {
     border-radius: 0;
     background-color: #FFF;
     box-shadow: 0 1px 1px rgba(0,0,0,.05);
-	border-radius: 4px;
+    border-radius: 4px;
+
     -webkit-overflow-scrolling: touch;
 }
 
@@ -672,19 +674,21 @@ fieldset > table > tbody > tr:nth-of-type(odd) {
 /* fix progress bar */
 #swaptotal > div,
 #swapfree > div,
+#swapcache > div,
 #memfree > div,
 #membuff > div,
 #conns > div,
 #memcache > div,
 #memtotal > div {
     width: 100% !important;
-	border-color:#ccc !important;
-	height:20px !important;
-	color:#76838f !important;
+    border-color:#ccc !important;
+    height:20px !important;
+    color:#76838f !important;
 }
 
 #swaptotal > div > div,
 #swapfree > div > div,
+#swapcache > div > div,
 #memfree > div > div,
 #membuff > div > div,
 #conns > div > div,
@@ -796,7 +800,7 @@ form.inline + form.inline,
 .cbi-input-reset,
 .cbi-button-remove {
     color: #fff !important;
-background: #617486;
+    background: #617486;
 }
 
 .a-to-btn {
@@ -840,7 +844,7 @@ background: #617486;
     border-top: 1px solid #e4eaec;
     border-left: 1px solid #e4eaec;
     border-right: 1px solid #e4eaec;
-	    background-color: #F7F7F7;
+    background-color: #F7F7F7;
 }
 
 .cbi-tabmenu > li:hover {
@@ -861,7 +865,7 @@ background: #617486;
 }
 
 .cbi-tabcontainer {
-	clear:both;
+    clear:both;
 }
 .cbi-tabcontainer > .cbi-value:nth-of-type(2n) {
     background-color: #f9f9f9;
@@ -889,8 +893,8 @@ background: #617486;
 .cbi-value-title {
     word-wrap: break-word;
     line-height:150%;
-	vertical-align: middle;
-	padding:6px 10px;
+    vertical-align: middle;
+    padding:6px 10px;
     width: 23rem;
     float: left;
     text-align: right;
@@ -899,10 +903,10 @@ background: #617486;
 
 .cbi-value {
     padding: 5px;
-	vertical-align: middle;
+    vertical-align: middle;
     display: inline-block;
     width: 100%;
-	border-top:1px dashed #e4eaec;
+    border-top:1px dashed #e4eaec;
 }
 
 .cbi-section-table-descr > .cbi-section-table-cell,
@@ -926,8 +930,8 @@ background: #617486;
 /* desc */
 .cbi-section-descr,
 .cbi-map-descr {
-	margin-bottom:10px;
-	padding-left:5px;
+    margin-bottom:10px;
+    padding-left:5px;
     font-size: small;
 }
 
@@ -1011,7 +1015,7 @@ background: #617486;
 
 /* change */
 #wan4_i, #wan6_i {
-width:50px !important;
+    width:50px !important;
 }
 
 .uci-change-list {
@@ -1100,7 +1104,7 @@ width:50px !important;
 }
 
 .ifacebox strong {
-	color:#f7f7f7;
+    color:#f7f7f7;
 }
 
 .cbi-image-button {
@@ -1210,14 +1214,14 @@ header > .container > .pull-right > * {
 }
 
 .showSide:before {
-	display:none;
+    display:none;
     color:#76838f;
     content: "\e029";
     font-family: "advancedtomato" !important;
     font-weight: normal !important;
-	font-size:14px;
+    font-size:14px;
     top: 18px;
-	left:10px;
+    left:10px;
     position: relative;
     vertical-align: middle;
 
@@ -1312,12 +1316,12 @@ header > .container > .pull-right > * {
 }
 
 .cbi-map fieldset h3 {
- padding:10px 0;
+    padding:10px 0;
  }
 
 .cbi-map fieldset ul li {
-	background:#f7f7f7;
-	margin-right:0 !important;
+    background:#f7f7f7;
+    margin-right:0 !important;
 }
 /* fix system reboot */
 
@@ -1336,7 +1340,7 @@ header > .container > .pull-right > * {
 
 .node-services-samba > .main .cbi-tabcontainer:nth-child(3) .cbi-value-description {
     padding-top: 1rem;
-	line-height:150%;
+    line-height:150%;
 }
 
 /* fix System Software*/
@@ -1403,4 +1407,340 @@ header > .container > .pull-right > * {
 /* language fix */
 body.lang_pl.node-main-login .cbi-value-title {
     width: 12rem;
+}
+
+
+@media screen and (max-width: 1600px) {
+    .main-left {
+        /*width: calc(0% + 15rem);*/
+    }
+
+    .main-right {
+        width: calc(100% - 15rem);
+    }
+
+    .cbi-button {
+        padding: 0.3rem 0.6rem;
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    header > .container > .pull-right > * {
+        top: 0.35rem;
+    }
+
+    .label {
+        padding: 0.2rem 0.6rem;
+    }
+
+    .cbi-value-title {
+        width: 15rem;
+        padding-right: 0.6rem;
+    }
+
+    fieldset {
+        padding: 1rem;
+    }
+
+    .cbi-input-textarea {
+        font-size: small;
+    }
+
+    .node-status-iptables > .main fieldset li > a {
+        padding: 0.3rem 0.6rem;
+    }
+}
+
+@media screen and (max-width: 1280px) {
+    header {
+        /*height: 3.5rem;*/
+    }
+
+    header > .container {
+        /*margin-top: 0.25rem;*/
+    }
+
+    .main {
+        top: 3.5rem;
+        height: calc(100% - 3.5rem);
+    }
+
+    .main-left {
+        width: calc(0% + 17rem);
+        top: 3.5rem;
+        height: calc(100% - 3.5rem);
+    }
+
+    .main-right {
+        width: calc(100% - 17rem);
+    }
+
+    .cbi-tabmenu > li > a, .tabs > li > a {
+        padding: 0.2rem 0.5rem;
+    }
+
+    .panel-title {
+        font-size: 1.3rem;
+        padding-bottom: 1rem;
+    }
+
+    table {
+        font-size: 0.8rem !important;
+        width: 100% !important;
+    }
+
+    .main > .main-left > .nav > li,
+    .main > .main-left > .nav > li a,
+    .main > .main-left > .nav > .slide > .menu {
+        font-size: 1.1rem;
+    }
+
+    .main > .main-left > .nav > .slide > .slide-menu > li > a {
+        font-size: 0.9rem;
+    }
+}
+
+@media screen and (max-width: 992px) {
+
+    header {
+        height: 3.5rem;
+    }
+
+    header > .container > .brand {
+        font-size: 18px;
+        height: 3.5rem;
+        line-height: 3.5rem;
+        width: calc(0% + 15rem);
+        /*width: initial;*/
+        padding-left: 5px;
+        padding-right: 20px;
+    }
+
+    .main-left {
+        width: 0;
+        position: fixed;
+        z-index: 100;
+    }
+
+    .main-right {
+        width: 100%;
+    }
+
+    .showSide {
+        margin: 0;
+        padding: 0;
+        display: inline-block;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    .showSide:before {
+        content: "\e20e";
+        font-size: 1.7rem;
+    }
+
+    .node-main-login .showSide {
+        display: none !important;
+    }
+
+    .cbi-value-title {
+        width: 9rem;
+        padding-right: 1rem;
+    }
+
+    .node-network-diagnostics > .main .cbi-map fieldset > div * {
+        width: 100% !important;
+    }
+
+    .node-network-diagnostics > .main .cbi-map fieldset > div input[type="text"] {
+        margin: 3rem 0 0 0 !important;
+    }
+
+    .node-network-diagnostics > .main .cbi-map fieldset > div:nth-child(4) input[type="text"] {
+        margin: 0 !important;
+    }
+
+    .node-network-diagnostics > .main .cbi-map fieldset > div select,
+    .node-network-diagnostics > .main .cbi-map fieldset > div input[type="button"] {
+        margin: 1rem 0 0 0;
+    }
+
+    .node-network-diagnostics > .main .cbi-map fieldset > div {
+        width: 100% !important;
+    }
+
+    #diag-rc-output > pre {
+        font-size: 1.2rem;
+    }
+
+    .node-main-login > .main .cbi-value-title {
+        text-align: left;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    fieldset {
+        padding: 1rem;
+        margin: 1rem 0 0 0;
+        overflow-x: auto;
+    }
+
+    .tabs {
+        margin: 0 -1rem;
+    }
+
+    #maincontent > .container {
+        margin: 0 1rem 1.5rem 1rem;
+    }
+
+    .main > .main-left > .nav > .slide > .menu {
+        font-size: 1.3rem;
+    }
+
+    .main > .main-left > .nav > .slide > .slide-menu > li > a {
+        font-size: 1.1rem;
+    }
+
+    .cbi-value-title {
+        width: 100%;
+        min-width: 0rem !important;
+        display: block;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+        text-align: left;
+    }
+
+    .cbi-value-field, .cbi-value-description {
+        width: 100%;
+    }
+
+    .cbi-value > .cbi-value-field {
+        display: inline-block;
+    }
+
+    .cbi-tabmenu > li, .tabs > li {
+        padding: 0.6rem 0rem;
+    }
+
+    .cbi-tabmenu > li > a, .tabs > li > a {
+        padding: 0.2rem 0.3rem;
+        font-size: 0.9rem;
+    }
+
+    .cbi-page-actions > div > input {
+        display: none;
+    }
+
+    .node-main-login > .main .container {
+        padding: 0.5rem 1rem 2rem 1rem;
+    }
+
+    .node-main-login > .main .cbi-value {
+        padding: 0;
+    }
+
+    .node-main-login > .main form > div:nth-last-child(1) {
+        margin-top: 2rem;
+    }
+
+    .node-main-login > .main .cbi-value-title {
+        width: 100% !important;
+        font-size: 1.2rem;
+    }
+
+    .node-main-login > .main fieldset {
+        margin: 0;
+        padding: 0.5rem;
+    }
+
+    h2 {
+        font-size: 2rem;
+    }
+
+    .tabs > li > a {
+        font-size: 0.9rem;
+    }
+
+    select,
+    input {
+        font-size: 0.9rem;
+    }
+
+    .mobile-hide {
+        display: none;
+    }
+
+    .panel-title {
+        font-size: 1.4rem;
+        padding-bottom: 1rem;
+    }
+
+    .node-system-packages > .main .cbi-value.cbi-value-last > div {
+        width: 100% !important;
+    }
+
+    .node-system-packages > .main .cbi-value .cbi-value-field input {
+        width: 100%;
+    }
+
+    .node-status-iptables > .main div > .cbi-map > form {
+        position: static !important;
+        margin: 0 0 2rem 0;
+        padding: 2rem;
+        border: 0;
+        font-weight: normal;
+        font-style: normal;
+        line-height: 1;
+        font-family: inherit;
+        min-width: inherit;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-radius: 0;
+        background-color: #FFF;
+        box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .16), 0 0 2px 0 rgba(0, 0, 0, .12);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .node-status-iptables > .main div > .cbi-map > form input[type="submit"] {
+        width: 100% !important;
+        margin: 0;
+    }
+
+    .node-status-iptables > .main div > .cbi-map > form input[type="submit"] + input[type="submit"] {
+        margin-top: 1rem;
+    }
+}
+
+@media screen and (min-width: 992px) {
+    .cbi-value input[type="password"],
+    .cbi-value input[type="text"] {
+        min-width: 20rem;
+    }
+
+    .cbi-value-field .cbi-input-select {
+        min-width: 20rem;
+    }
+}
+
+@media screen and (min-width: 1280px) {
+    .cbi-value input[type="password"],
+    .cbi-value input[type="text"] {
+        min-width: 22rem;
+    }
+
+    .cbi-value-field .cbi-input-select {
+        min-width: 22rem;
+    }
+}
+
+@media screen and (min-width: 1600px) {
+    .cbi-value input[type="password"],
+    .cbi-value input[type="text"] {
+        min-width: 25rem;
+    }
+
+    .cbi-value-field .cbi-input-select {
+        min-width: 25rem;
+    }
 }
