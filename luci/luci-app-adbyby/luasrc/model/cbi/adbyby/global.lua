@@ -64,10 +64,10 @@ o = s:option(ListValue, "filter_mode", translate('Default')..translate("Filter M
 o.default = "adblock"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("global", translate("Global Filter"))
 o:value("adblock", translate("AdBlock Filter"))
+o:value("global", translate("Global Filter"))
 
-s = m:section(TypedSection, "acl_rule", translate("Adbyby ACLs"),
+s = m:section(TypedSection, "acl_rule", translate("ACLs"),
 	translate("ACLs is a tools which used to designate specific IP filter mode"))
 s.template  = "cbi/tblsection"
 s.sortable  = true
@@ -85,7 +85,7 @@ o.width = "40%"
 o.default = "disable"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("global", translate("Global Filter"))
 o:value("adblock", translate("AdBlock Filter"))
+o:value("global", translate("Global Filter"))
 
 return m

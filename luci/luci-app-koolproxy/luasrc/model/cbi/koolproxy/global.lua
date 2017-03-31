@@ -7,7 +7,7 @@ local ipkg = require("luci.model.ipkg")
 local uci = luci.model.uci.cursor()
 
 local pkg_name
-local min_version = "3.0"
+local min_version = "3.0.0"
 local koolproxy = "koolproxy"
 local m, s, o
 
@@ -61,13 +61,14 @@ o.default = 0
 o.rmempty = false
 
 o = s:option(ListValue, "filter_mode", translate('Default')..translate("Filter Mode"))
-o.default = "global"
+o.default = "adblock"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("http", translate("Http Filter"))
-o:value("global", translate("Global Filter"))
+o:value("adblock", translate("AdBlock Filter"))
+o:value("global", translate("Global Filter(HTTP)"))
+o:value("globals", translate("Global Filter(HTTPS)"))
 
-s = m:section(TypedSection, "acl_rule", translate("Koolproxy ACLs"),
+s = m:section(TypedSection, "acl_rule", translate("ACLs"),
 	translate("ACLs is a tools which used to designate specific IP filter mode"))
 s.template  = "cbi/tblsection"
 s.sortable  = true
@@ -85,7 +86,8 @@ o.width = "40%"
 o.default = "disable"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
-o:value("http", translate("Http Filter"))
-o:value("global", translate("Global Filter"))
+o:value("adblock", translate("AdBlock Filter"))
+o:value("global", translate("Global Filter(HTTP)"))
+o:value("globals", translate("Global Filter(HTTPS)"))
 
 return m

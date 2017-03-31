@@ -34,14 +34,17 @@ msgstr "过滤模式"
 msgid "No Filter"
 msgstr "不过滤"
 
-msgid "Http Filter"
-msgstr "Http模式"
+msgid "AdBlock Filter"
+msgstr "黑名单模式"
 
-msgid "Global Filter"
-msgstr "全局模式"
+msgid "Global Filter(HTTP)"
+msgstr "全局模式(HTTP)"
 
-msgid "Koolproxy ACLs"
-msgstr "Koolproxy 访问控制"
+msgid "Global Filter(HTTPS)"
+msgstr "全局模式(HTTPS)"
+
+msgid "ACLs"
+msgstr "访问控制"
 
 msgid "ACLs is a tools which used to designate specific IP filter mode"
 msgstr "访问控制列表是用于指定特殊IP过滤模式的工具"
