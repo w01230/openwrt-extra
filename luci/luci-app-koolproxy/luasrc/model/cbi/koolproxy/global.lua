@@ -65,7 +65,8 @@ o.default = "adblock"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
 o:value("adblock", translate("AdBlock Filter"))
-o:value("global", translate("Global Filter(HTTP)"))
+o:value("global", translate("Global Filter"))
+o:value("adblocks", translate("AdBlock Filter(HTTPS)"))
 o:value("globals", translate("Global Filter(HTTPS)"))
 
 s = m:section(TypedSection, "acl_rule", translate("ACLs"),
@@ -87,7 +88,8 @@ o.default = "disable"
 o.rmempty = false
 o:value("disable", translate("No Filter"))
 o:value("adblock", translate("AdBlock Filter"))
-o:value("global", translate("Global Filter(HTTP)"))
+o:value("global", translate("Global Filter"))
+o:value("adblocks", translate("AdBlock Filter(HTTPS)"))
 o:value("globals", translate("Global Filter(HTTPS)"))
 
 return m

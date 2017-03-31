@@ -59,6 +59,9 @@ get_action_chain() {
 		global)
 			echo "KOOLPROXY_HTTP"
 		;;
+		adblocks)
+			echo "KOOLPROXY_ADBS"
+		;;
 		globals)
 			echo "KOOLPROXY_HTTPS"
 		;;
@@ -70,6 +73,9 @@ get_jump_mode(){
 		disable)
 			echo "j"
 		;;
+		*s)
+			echo "j"
+		;;
 		*)
 			echo "g"
 		;;
@@ -79,7 +85,7 @@ get_jump_mode(){
 add_rule() {
 	# ipset
 	IPSET_ADB="adblock"
-	ipset -! create $IPSET_ADB iphash
+	ipset -! create $IPSET_ADB nethash && ipset -! add $IPSET_ADB 110.110.110.110 2>/dev/null
 
 	# IP
 	iptables -t nat -N KOOLPROXY
@@ -93,6 +99,13 @@ add_rule() {
 	iptables -t nat -A KOOLPROXY -d 224.0.0.0/4 -j RETURN
 	iptables -t nat -A KOOLPROXY -d 240.0.0.0/4 -j RETURN
 	
+	#shadowsocks
+	SS_INDEX=`iptables -t nat -L PREROUTING|tail -n +3|sed -n -e '/^SHADOWSOCKS/='`
+	if [ -n "SS_INDEX" ]; then
+		let SS_INDEX+=1
+	fi
+	iptables -t nat -I PREROUTING $SS_INDEX -p tcp -j KOOLPROXY
+
 	iptables -t nat -N KOOLPROXY_HTTP
 	iptables -t nat -A KOOLPROXY_HTTP -p tcp --dport 80 -j REDIRECT --to $LOCAL_PORT
 	
@@ -102,11 +115,8 @@ add_rule() {
 	iptables -t nat -N KOOLPROXY_ADB
 	iptables -t nat -A KOOLPROXY_ADB -p tcp --dport 80 -m set --match-set $IPSET_ADB dst -j REDIRECT --to $LOCAL_PORT
 
-	SS_INDEX=`iptables -t nat -L PREROUTING | tail -n+3 | sed -n -e '/^SHADOWSOCKS/='`
-	if [ -n "SS_INDEX" ]; then
-		let SS_INDEX += 1
-		iptables -t nat -I PREROUTING $SS_INDEX -p tcp -j KOOLPROXY
-	fi
+	iptables -t nat -N KOOLPROXY_ADB
+	iptables -t nat -A KOOLPROXY_ADBS -p tcp -m multiport --dport 80,443 -m set --match-set $IPSET_ADB dst -j REDIRECT --to $LOCAL_PORT
 
 	#ACLS
 	for i in $(seq 0 1000)
@@ -119,7 +129,10 @@ add_rule() {
 		iptables -t nat -A KOOLPROXY -s $ip -$(get_jump_mode $mode) $(get_action_chain $mode)
 	done
 	
+	# load 
 	iptables -t nat -A KOOLPROXY -j $(get_action_chain $GLOBAL_MODE)
+
+	# cert
 	iptables -t nat -A KOOLPROXY_HTTPS -p tcp -d 110.110.110.110 --dport 80 -j REDIRECT --to-port $LOCAL_PORT
 }
 
@@ -127,6 +140,7 @@ del_rule() {
 	iptables -t nat -D PREROUTING -j KOOLPROXY 2>/dev/null
 	iptables -t nat -F KOOLPROXY 2>/dev/null && iptables -t nat -X KOOLPROXY 2>/dev/null
 	iptables -t nat -F KOOLPROXY_ADB 2>/dev/null && iptables -t nat -X KOOLPROXY_ADB 2>/dev/null
+	iptables -t nat -F KOOLPROXY_ADBS 2>/dev/null && iptables -t nat -X KOOLPROXY_ADBS 2>/dev/null
 	iptables -t nat -F KOOLPROXY_HTTP 2>/dev/null && iptables -t nat -X KOOLPROXY_HTTP 2>/dev/null
 	iptables -t nat -F KOOLPROXY_HTTPS 2>/dev/null && iptables -t nat -X KOOLPROXY_HTTPS 2>/dev/null
 }

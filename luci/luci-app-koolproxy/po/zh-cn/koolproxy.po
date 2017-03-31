@@ -37,8 +37,11 @@ msgstr "不过滤"
 msgid "AdBlock Filter"
 msgstr "黑名单模式"
 
-msgid "Global Filter(HTTP)"
+msgid "Global Filter"
 msgstr "全局模式(HTTP)"
+
+msgid "AdBlock Filter(HTTPS)"
+msgstr "黑名单模式(HTTPS)"
 
 msgid "Global Filter(HTTPS)"
 msgstr "全局模式(HTTPS)"
