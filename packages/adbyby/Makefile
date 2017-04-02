@@ -46,7 +46,11 @@ endef
 define Package/adbyby/install
 	$(INSTALL_DIR) $(1)/usr/share/adbyby $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/adbyby/
+
+ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
 	$(CP) ./files/adblock/* $(1)/etc/
+endif
+
 ifeq ($(ARCH),arm)
 	$(INSTALL_BIN) ./files/arm/adbyby $(1)/usr/share/adbyby/
 endif

@@ -26,14 +26,6 @@ uci_get_by_type() {
 	echo ${ret:=$3}
 }
 
-iptables_ext() {
-	iptables -t nat -C $2 $3 2>/dev/null
-	local ret=$?
-	if [ "$ret" -ne 0 ];then
-		iptables -t nat -$1 $2 $3 2>/dev/null
-	fi
-}
-
 is_true() {
 	case $1 in
 		1|on|true|yes|enabled) echo 0;;
@@ -115,7 +107,7 @@ add_rule() {
 	iptables -t nat -N KOOLPROXY_ADB
 	iptables -t nat -A KOOLPROXY_ADB -p tcp --dport 80 -m set --match-set $IPSET_ADB dst -j REDIRECT --to $LOCAL_PORT
 
-	iptables -t nat -N KOOLPROXY_ADB
+	iptables -t nat -N KOOLPROXY_ADBS
 	iptables -t nat -A KOOLPROXY_ADBS -p tcp -m multiport --dport 80,443 -m set --match-set $IPSET_ADB dst -j REDIRECT --to $LOCAL_PORT
 
 	#ACLS
@@ -148,7 +140,7 @@ del_rule() {
 start() {
 	! load_config && exit 0
 	iptables -t nat -C PREROUTING -j KOOLPROXY 2>/dev/null
-	/usr/share/koolproxy/koolproxy >/dev/null 2>&1 &
+	/usr/share/koolproxy/koolproxy -d >/dev/null 2>&1 &
 	add_rule
 }
 
