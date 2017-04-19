@@ -52,27 +52,27 @@ ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
 endif
 
 ifeq ($(ARCH),arm)
-	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/arm -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/arm -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),aarch64)
-	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/arm -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/arm -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/arm $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mips)
-	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mips -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mips -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mips $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),mipsel)
-	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mipsel -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/mipsel -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/mipsel $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),i386)
-	wget hhttps://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/i386 -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/i386 -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/i386 $(1)/usr/share/koolproxy/koolproxy
 endif
 ifeq ($(ARCH),x86_64)
-	wget https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/x86_64 -P ./files/binary/
+	wget --backups=1 https://raw.githubusercontent.com/koolshare/firmware/master/binary/KoolProxy/x86_64 -P ./files/binary/
 	$(INSTALL_BIN) ./files/binary/x86_64 $(1)/usr/share/koolproxy/koolproxy
 endif
 	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy

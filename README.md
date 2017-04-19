@@ -1,10 +1,10 @@
-#1 Some extra packages for OpenWrt/LEDE
+# Some extra packages for OpenWrt/LEDE
 
-#2usage:
+## usage:
 
 	1) remove shadowsocket in feeder/luci/packages and luci-app-shadowsocket in feeder/luci
 	
-	2) remove feeder/luci/them/lluci-theme-material
+	2) remove feeder/luci/them/luci-theme-material
 
 	3) move extra to openwrt(or LEDE)/packages
 	
