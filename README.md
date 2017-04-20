@@ -13,3 +13,6 @@
 	5) move them to feeder/luci/them
 	
 	6) select luci app and make
+
+###Thanks
+   Thanks for releated githuber.
