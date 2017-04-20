@@ -14,5 +14,5 @@
 	
 	6) select luci app and make
 
-###Thanks
+### Thanks
    Thanks for releated githuber.
