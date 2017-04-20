@@ -14,5 +14,5 @@
 	
 	6) select luci app and make
 
-### Thanks
-   Thanks for releated githuber.
+## Thanks:
+     Thanks for releated githuber. @crwnet @shadowsocks etc.
