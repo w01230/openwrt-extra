@@ -59,6 +59,6 @@ endif
 	$(INSTALL_DATA) ./files/koolproxy.firewall $(1)/usr/share/koolproxy/firewall.include
 	$(INSTALL_DATA) ./files/koolproxy.config $(1)/etc/config/koolproxy
 
-endif
+endef
 
 $(eval $(call BuildPackage,koolproxy))
