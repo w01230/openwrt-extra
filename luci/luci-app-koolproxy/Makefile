@@ -6,11 +6,11 @@
 #
 
 include $(TOPDIR)/rules.mk
-[<0;34;12M
+
 LUCI_TITLE:=LuCI Support for Adbyby
 LUCI_DEPENDS:=+koolproxy +openssl-util +ca-certificates
 LUCI_PKGARCH:=all
 
-include $(TOPDIR)/feeds/luci/luci.mk
+include ../../luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
