@@ -17,7 +17,7 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Chen RuiWei <crwbak@gmail.com>
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
-BINARY_REMOTE:=https://github.com/koolproxy/koolproxy_rules/raw/master/downloads
+BINARY_REMOTE:=https://github.com/koolproxy/koolproxy_bin/raw/master
 
 include $(INCLUDE_DIR)/package.mk
 
