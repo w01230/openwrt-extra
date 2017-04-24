@@ -9,7 +9,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=koolproxy
-PKG_VERSION:=3.4.1
+PKG_VERSION:=3.5.1
 PKG_RELEASE=0
 
 PKG_LICENSE:=GPLv3
@@ -51,7 +51,7 @@ define Package/koolproxy/install
 ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
 	$(CP) ./files/adblock/* $(1)/etc/
 endif
-	wget --backups=1 $(BINARY_REMOTE)/$(ARCH) -P ./files/binary/
+	$(shell wget --backups=1 $(BINARY_REMOTE)/$(ARCH) -P ./files/binary/)
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
 	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
