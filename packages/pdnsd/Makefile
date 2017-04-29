@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pdnsd
 PKG_VERSION:=1.2.9
-PKG_RELEASE=$(PKG_SOURCE_VERSION)
+PKG_RELEASE=0
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/w01230/pdnsd.git
