@@ -48,7 +48,7 @@ define Package/adbyby/install
 	$(CP) ./files/_common/* $(1)/usr/share/adbyby/
 
 ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
-	$(CP) ./files/adblock/* $(1)/etc/
+	$(CP) ./files/adblock/dnsmasq.d/* $(1)/etc/dnsmasq.d/
 endif
 		
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/adbyby/adbyby

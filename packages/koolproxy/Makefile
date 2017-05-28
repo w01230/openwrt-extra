@@ -49,7 +49,7 @@ define Package/koolproxy/install
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 
 ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
-	$(CP) ./files/adblock/* $(1)/etc/
+	$(CP) ./files/adblock/dnsmasq.d/* $(1)/etc/dnsmasq.d/
 endif
 	$(shell wget --backups=1 $(BINARY_REMOTE)/$(ARCH) -P ./files/binary/)
 
