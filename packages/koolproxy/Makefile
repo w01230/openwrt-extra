@@ -17,7 +17,6 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Chen RuiWei <crwbak@gmail.com>
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
-BINARY_REMOTE:=https://github.com/koolproxy/koolproxy-bin/raw/master
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -45,17 +44,14 @@ define Package/adbyby/conffiles
 endef
 
 define Package/koolproxy/install
-	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/dnsmasq.d $(1)/etc/
+	$(shell wget --backups=1 https://github.com/koolproxy/koolproxy-bin/raw/master/$(ARCH) -P ./files/binary/)
+
+	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 
-ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
-	$(CP) ./files/adblock/dnsmasq.d/* $(1)/etc/dnsmasq.d/
-endif
-	$(shell wget --backups=1 $(BINARY_REMOTE)/$(ARCH) -P ./files/binary/)
-
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
-	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
-#	$(INSTALL_DATA) ./files/adblock/dnsmasq.d/adblock.conf $(1)/etc/dnsmasq.d/adblock.conf
+	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy	
+
 	$(INSTALL_DATA) ./files/koolproxy.defaults $(1)/etc/uci-defaults/95-koolproxy
 	$(INSTALL_DATA) ./files/koolproxy.firewall $(1)/usr/share/koolproxy/firewall.include
 	$(INSTALL_DATA) ./files/koolproxy.config $(1)/etc/config/koolproxy
