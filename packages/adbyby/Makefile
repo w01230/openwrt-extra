@@ -46,10 +46,14 @@ endef
 define Package/adbyby/install
 	$(INSTALL_DIR) $(1)/usr/share/adbyby $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/dnsmasq.d $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/adbyby/
+
+ifneq ("$(wildcard $(1)/etc/dnsmasq.d/adblock.conf)","")
+	$(CP) ./files/adblock/* $(1)/etc/
+endif
 		
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/adbyby/
 	$(INSTALL_BIN) ./files/adbyby.init $(1)/etc/init.d/adbyby
-	$(INSTALL_DATA) ./files/adblock/adblock.conf $(1)/etc/dnsmasq.d/adblock.conf
+#	$(INSTALL_DATA) ./files/adblock/dnsmasq.d/adblock.conf $(1)/etc/dnsmasq.d/adblock.conf
 	$(INSTALL_DATA) ./files/adbyby.defaults $(1)/etc/uci-defaults/95-adbyby
 	$(INSTALL_DATA) ./files/adbyby.firewall $(1)/usr/share/adbyby/firewall.include
 	$(INSTALL_DATA) ./files/adbyby.config $(1)/etc/config/adbyby

@@ -55,7 +55,7 @@ endif
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
 	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
-	$(INSTALL_DATA) ./files/adblock/adblock.conf $(1)/etc/dnsmasq.d/adblock.conf
+#	$(INSTALL_DATA) ./files/adblock/dnsmasq.d/adblock.conf $(1)/etc/dnsmasq.d/adblock.conf
 	$(INSTALL_DATA) ./files/koolproxy.defaults $(1)/etc/uci-defaults/95-koolproxy
 	$(INSTALL_DATA) ./files/koolproxy.firewall $(1)/usr/share/koolproxy/firewall.include
 	$(INSTALL_DATA) ./files/koolproxy.config $(1)/etc/config/koolproxy
