@@ -67,6 +67,7 @@ ifeq ($(BUILD_VARIANT),mbedtls)
 endif
 
 define Package/shadowsocks/install
+	./files/gfwlist2dnsmasq.sh -s gfw -o ./files/common/dnsmasq.d/gfwlist.conf
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/usr/share/shadowsocks $(1)/etc/config $(1)/etc
 	$(CP) ./files/common/* $(1)/etc/
 	$(CP) ./files/dnsmasq.conf $(1)/etc/dnsmasq.conf
