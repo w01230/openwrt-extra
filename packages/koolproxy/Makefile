@@ -9,7 +9,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=koolproxy
-PKG_VERSION:=3.5.1
+PKG_VERSION:=3.6.0
 PKG_RELEASE=0
 
 PKG_LICENSE:=GPLv3
@@ -44,7 +44,7 @@ define Package/adbyby/conffiles
 endef
 
 define Package/koolproxy/install
-	$(shell wget --backups=1 "https://github.com/koolproxy/koolproxy-bin/raw/master/$(ARCH) -P ./files/binary/")
+	$(shell wget --backups=1 "https://koolproxy.com/downloads/$(ARCH) -P ./files/binary/")
 
 	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
