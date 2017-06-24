@@ -225,7 +225,7 @@ del_rule() {
 start() {
 	! load_config && exit 0
 	#避免重复开启服务
-	iptables -t nat -C PREROUTING -j SHADOWSOCKS 2>/dev/null && [ $? -eq 0 ] && exit 0;
+	iptables -t nat -C PREROUTING -j SHADOWSOCKS 2>/dev/null;
 	start_redir
 	start_dns
 	add_rule
