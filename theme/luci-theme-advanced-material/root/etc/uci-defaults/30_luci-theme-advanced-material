@@ -1,7 +1,0 @@
-#!/bin/sh
-uci batch <<-EOF
-	set luci.themes.advanced-material=/luci-static/advanced-material
-	set luci.main.mediaurlbase=/luci-static/advanced-material
-	commit luci
-EOF
-exit 0

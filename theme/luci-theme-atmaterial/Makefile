@@ -6,7 +6,7 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=Advanced Material Theme
+LUCI_TITLE:=Atmaterial Theme
 LUCI_DEPENDS:=
 
 include $(TOPDIR)/feeds/luci/luci.mk

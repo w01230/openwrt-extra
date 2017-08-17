@@ -44,13 +44,12 @@ define Package/adbyby/conffiles
 endef
 
 define Package/koolproxy/install
-	$(shell wget --backups=1 "https://koolproxy.com/downloads/$(ARCH) -P ./files/binary/")
-
 	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
+
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
-	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy	
+	$(INSTALL_BIN) ./files/koolproxy.init $(1)/etc/init.d/koolproxy
 
 	$(INSTALL_DATA) ./files/koolproxy.defaults $(1)/etc/uci-defaults/95-koolproxy
 	$(INSTALL_DATA) ./files/koolproxy.firewall $(1)/usr/share/koolproxy/firewall.include
