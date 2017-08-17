@@ -21,7 +21,7 @@ uci:foreach(shadowsocks, "servers", function(s)
 	end
 end)
 
-m = Map(shadowsocks, translate("ShadowSocks"), translate("A lightweight secured SOCKS5 proxy"))
+m = Map(shadowsocks, translate("Shadowsocks"), translate("A lightweight secured SOCKS5 proxy"))
 m.template = "shadowsocks/index"
 
 -- [[ Running Status ]]--
@@ -95,7 +95,7 @@ o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocks/ping"
 o.width = "20%"
 
-s = m:section(TypedSection, "acl_rule", translate("ShadowSocks ACLs"),
+s = m:section(TypedSection, "acl_rule", translate("Shadowsocks ACLs"),
 	translate("ACLs is a tools which used to designate specific IP proxy mode"))
 s.template  = "cbi/tblsection"
 s.sortable  = true

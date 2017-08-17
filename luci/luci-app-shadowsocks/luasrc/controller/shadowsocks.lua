@@ -9,7 +9,7 @@ function index()
 		return
 	end
 
-	entry({"admin", "services", "shadowsocks"}, cbi("shadowsocks/global"), _("ShadowSocks"), 2).dependent = true
+	entry({"admin", "services", "shadowsocks"}, cbi("shadowsocks/global"), _("Shadowsocks"), 2).dependent = true
 	entry({"admin", "services", "shadowsocks", "serverconfig"}, cbi("shadowsocks/serverconfig")).leaf = true
 	entry({"admin", "services", "shadowsocks", "status"}, call("act_status")).leaf = true
 	entry({"admin", "services", "shadowsocks", "ping"}, call("act_ping")).leaf = true

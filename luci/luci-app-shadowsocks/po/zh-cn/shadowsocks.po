@@ -1,8 +1,8 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "ShadowSocks"
-msgstr "ShadowSocks"
+msgid "Shadowsocks"
+msgstr "Shadowsocks"
 
 msgid "A lightweight secured SOCKS5 proxy"
 msgstr "一个轻量级安全SOCKS5代理"
@@ -85,8 +85,8 @@ msgstr "加密方式"
 msgid "Ping Latency"
 msgstr "Ping 延迟"
 
-msgid "ShadowSocks ACLs"
-msgstr "ShadowSocks 访问控制"
+msgid "Shadowsocks ACLs"
+msgstr "Shadowsocks 访问控制"
 
 msgid "ACLs is a tools which used to designate specific IP proxy mode"
 msgstr "访问控制列表是用于指定特殊IP代理模式的工具"

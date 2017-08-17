@@ -30,7 +30,7 @@ local encrypt_methods = {
 
 arg[1] = arg[1] or ""
 
-m = Map(shadowsocks, translate("ShadowSocks Server Config"))
+m = Map(shadowsocks, translate("Shadowsocks Server Config"))
 m.redirect = ds.build_url("admin", "services", "shadowsocks")
 
 s = m:section(NamedSection, arg[1], "servers", "")
