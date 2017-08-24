@@ -9,7 +9,7 @@ function index()
 		return
 	end
 
-	entry({"admin", "services", "koolproxy"}, cbi("koolproxy/global"), _("koolproxy"), 1).dependent = true
+	entry({"admin", "services", "koolproxy"}, cbi("koolproxy/global"), _("Koolproxy"), 1).dependent = true
 	entry({"admin", "services", "koolproxy", "status"}, call("act_status")).leaf = true
 end
 

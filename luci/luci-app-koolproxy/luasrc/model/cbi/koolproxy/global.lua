@@ -8,7 +8,7 @@ local uci = luci.model.uci.cursor()
 local koolproxy = "koolproxy"
 local m, s, o
 
-m = Map(koolproxy, translate("koolproxy"), translate("A powerful advertisement blocker"))
+m = Map(koolproxy, translate("Koolproxy"), translate("A powerful advertisement blocker"))
 m.template = "koolproxy/index"
 
 -- [[ Running Status ]]--

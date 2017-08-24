@@ -1,6 +1,5 @@
 #
-# Copyright (C) 2015 OpenWrt-dist
-# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
+# Copyright (C) 2015-2017 John Wang <4585006@gmail.com>
 #
 # This is free software, licensed under the GNU General Public License v3.
 # See /LICENSE for more information.
@@ -9,62 +8,43 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=shadowsocks
-PKG_VERSION:=2.5.6
-PKG_RELEASE=1
+PKG_VERSION:=3.0.8
+PKG_RELEASE:=1
 
-PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev/archive/
-PKG_SOURCE:=v$(PKG_VERSION).tar.gz
-PKG_MD5SUM:=8dbde3cc317d437d56a4d807b8eabf02
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev.git
+PKG_SOURCE_VERSION:=f1dd1354a9e0bf4a364773be3385e12de571d008
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION)
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Chen RuiWei <crwbak@gmail.com>
+PKG_MAINTAINER:=John Wang <4585006@gmail.com>
 
-PKG_BUILD_DIR:=$(BUILD_DIR)/shadowsocks-libev-$(PKG_VERSION)
-PKG_BUILD_PARALLEL:=1
-
-PKG_USE_MIPS16:=0
-PKG_FIXUP:=autoreconf
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)/$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION)
 
 PKG_INSTALL:=1
+PKG_FIXUP:=autoreconf
+PKG_USE_MIPS16:=0
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/shadowsocks/Default
 	SECTION:=net
 	CATEGORY:=Extra packages
-	TITLE:=Lightweight Secured Socks5 Proxy $(2)
+	TITLE:=Lightweight Secured Socks5 Proxy
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
-	VARIANT:=$(1)
-	DEPENDS:=$(3)
+	DEPENDS:=+zlib +libev +libudns +libpcre +libpthread +libsodium +libmbedtls
 endef
 
-Package/shadowsocks = $(call Package/shadowsocks/Default,openssl,(OpenSSL),+libopenssl +libpthread +ipset +ip +iptables-mod-tproxy +libpcre +zlib)
-Package/shadowsocks-polarssl = $(call Package/shadowsocks/Default,polarssl,(PolarSSL),+libpolarssl +libpthread +ipset +ip +iptables-mod-tproxy)
-Package/shadowsocks-mbedtls = $(call Package/shadowsocks/Default,mbedtls,(mbedTLS),+libmbedtls +libpthread +ipset +ip +iptables-mod-tproxy)
+Package/shadowsocks = $(Package/shadowsocks/Default)
 
 define Package/shadowsocks/description
-shadowsocks is a lightweight secured socks5 proxy for embedded devices and low end boxes.
+Shadowsocks-libev is a lightweight secured socks5 proxy for embedded devices and low end boxes.
 endef
 
-Package/shadowsocks-polarssl/description = $(Package/shadowsocks/description)
-Package/shadowsocks-mbedtls/description = $(Package/shadowsocks/description)
-
-define Package/shadowsocks/conffiles
-/etc/config/shadowsocks
-endef
-
-Package/shadowsocks-polarssl/conffiles = $(Package/shadowsocks/conffiles)
-
-CONFIGURE_ARGS += --disable-documentation --disable-ssp
-
-ifeq ($(BUILD_VARIANT),polarssl)
-	CONFIGURE_ARGS += --with-crypto-library=polarssl
-endif
-
-ifeq ($(BUILD_VARIANT),mbedtls)
-	CONFIGURE_ARGS += --with-crypto-library=mbedtls
-endif
+CONFIGURE_ARGS += --disable-ssp --disable-documentation --disable-assert
 
 define Package/shadowsocks/install
 	$(shell./files/gfwlist2dnsmasq.sh -s gfw -o ./files/common/dnsmasq.d/gfwlist.conf)
@@ -79,9 +59,4 @@ define Package/shadowsocks/install
 	$(INSTALL_DATA) ./files/shadowsocks.config $(1)/etc/config/shadowsocks
 endef
 
-Package/shadowsocks-polarssl/install = $(Package/shadowsocks/install)
-Package/shadowsocks-mbedtls/install = $(Package/shadowsocks/install)
-
 $(eval $(call BuildPackage,shadowsocks))
-$(eval $(call BuildPackage,shadowsocks-polarssl))
-$(eval $(call BuildPackage,shadowsocks-mbedtls))

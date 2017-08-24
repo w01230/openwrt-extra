@@ -7,8 +7,8 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI Support for Adbyby
-LUCI_DEPENDS:=+koolproxy +openssl-util +ca-certificates
+LUCI_TITLE:=LuCI Support for Koolproxy 
+LUCI_DEPENDS:=+koolproxy
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk

@@ -1,8 +1,8 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "koolproxy"
-msgstr "koolproxy"
+msgid "Koolproxy"
+msgstr "Koolproxy"
 
 msgid "A powerful advertisement blocker"
 msgstr "一个强大的广告屏蔽工具"
@@ -54,4 +54,5 @@ msgstr "访问控制列表是用于指定特殊IP过滤模式的工具"
 
 msgid "IP Address"
 msgstr "内部IP地址"
+
 

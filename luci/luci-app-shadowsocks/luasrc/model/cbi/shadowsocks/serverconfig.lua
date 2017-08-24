@@ -26,6 +26,11 @@ local encrypt_methods = {
 	"salsa20",
 	"chacha20",
 	"chacha20-ietf",
+	"aes-128-gcm"
+	"aes-192-gcm"
+	"aes-256-gcm"
+	"chacha20-ietf-poly1305"
+	"xchacha20-ietf-poly1305"
 }
 
 arg[1] = arg[1] or ""
@@ -36,9 +41,6 @@ m.redirect = ds.build_url("admin", "services", "shadowsocks")
 s = m:section(NamedSection, arg[1], "servers", "")
 s.addremove = false
 s.dynamic = false
-
-o = s:option(Flag, "auth_enable", translate("Onetime Authentication"))
-o.rmempty = false
 
 o = s:option(Value, "server", translate("Server Address"))
 o.datatype = "host"
