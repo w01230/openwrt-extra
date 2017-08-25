@@ -61,7 +61,7 @@ msgstr "DNS转发地址"
 msgid "Servers List"
 msgstr "服务器列表"
 
-msgid "Shadowsocks Servr Config"
+msgid "Shadowsocks Server Config"
 msgstr "服务器配置"
 
 msgid "Server Address"
