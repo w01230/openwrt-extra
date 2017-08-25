@@ -61,8 +61,8 @@ msgstr "DNS转发地址"
 msgid "Servers List"
 msgstr "服务器列表"
 
-msgid "Onetime Authentication"
-msgstr "单次验证"
+msgid "Shadowsocks Servr Config"
+msgstr "服务器配置"
 
 msgid "Server Address"
 msgstr "服务器地址"
