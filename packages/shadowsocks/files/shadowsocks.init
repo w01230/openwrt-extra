@@ -59,10 +59,6 @@ load_config() {
 	DNS_FORWARD=$(uci_get_by_type global dns_forward 8.8.8.8:53)
 	
 	LOCAL_PORT=$(uci_get_by_name $GLOBAL_SERVER local_port)
-	case "$(uci_get_by_name $GLOBAL_SERVER auth_enable)" in
-		1|on|true|yes|enabled) ARG_OTA="-A";;
-		*) ARG_OTA="";;
-	esac
 	gen_config_file $GLOBAL_SERVER
 	return 0
 }
@@ -70,7 +66,7 @@ load_config() {
 start_redir() {
 	mkdir -p /var/run /var/etc
 	/usr/bin/ss-redir \
-	-c $CONFIG_FILE $ARG_OTA \
+	-c $CONFIG_FILE \
 	-u \
 	-f /var/run/ss-redir.pid
 }

@@ -39,13 +39,12 @@ endef
 define Build/Compile
 endef
 
-define Package/adbyby/conffiles
+define Package/koolproxy/conffiles
 /etc/config/koolproxy
 endef
 
 define Package/koolproxy/install
 	$(INSTALL_DIR) $(1)/usr/share/koolproxy $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
-
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
