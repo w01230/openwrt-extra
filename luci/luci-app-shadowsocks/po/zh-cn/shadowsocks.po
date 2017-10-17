@@ -86,7 +86,7 @@ msgid "Ping Latency"
 msgstr "Ping 延迟"
 
 msgid "Shadowsocks ACLs"
-msgstr "Shadowsocks 访问控制"
+msgstr "访问控制"
 
 msgid "ACLs is a tools which used to designate specific IP proxy mode"
 msgstr "访问控制列表是用于指定特殊IP代理模式的工具"
