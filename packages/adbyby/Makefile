@@ -14,7 +14,7 @@ PKG_RELEASE=0
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Chen RuiWei <crwbak@gmail.com>
+PKG_MAINTAINER:=John Wang <4585006@gmail.com>
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
@@ -44,7 +44,7 @@ define Package/adbyby/conffiles
 endef
 
 define Package/adbyby/install
-	$(INSTALL_DIR) $(1)/usr/share/adbyby $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/config $(1)/etc/
+	$(INSTALL_DIR) $(1)/usr/share/adbyby/ $(1)/etc/init.d/ $(1)/etc/uci-defaults/ $(1)/etc/config/ $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/adbyby/
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/adbyby/adbyby
