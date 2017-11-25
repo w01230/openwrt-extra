@@ -44,7 +44,7 @@ define Package/koolproxy/conffiles
 endef
 
 define Package/koolproxy/install
-	$(INSTALL_DIR) $(1)/usr/share/koolproxy/ $(1)/etc/init.d/ $(1)/etc/uci-default/s $(1)/etc/config/ $(1)/etc/
+	$(INSTALL_DIR) $(1)/usr/share/koolproxy/ $(1)/etc/init.d/ $(1)/etc/uci-default/ $(1)/etc/config/ $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/koolproxy/
 
 	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/koolproxy/koolproxy
