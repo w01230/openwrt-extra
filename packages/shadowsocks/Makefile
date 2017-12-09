@@ -35,7 +35,7 @@ define Package/shadowsocks/Default
 	CATEGORY:=Extra packages
 	TITLE:=Lightweight Secured Socks5 Proxy
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
-	DEPENDS:=+zlib +libev +libcares +libpcre +libpthread +libsodium +libmbedtls +libustream-mbedtls +ipset +ip +iptables +iptables-mod-tproxy
+	DEPENDS:=+zlib +libev +libcares +libpcre +libpthread +libsodium +libmbedtls +libustream-mbedtls +ipset +ip +iptables +iptables-mod-tproxy +iptables-mod-extra
 endef
 
 Package/shadowsocks = $(Package/shadowsocks/Default)
