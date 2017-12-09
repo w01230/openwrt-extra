@@ -35,7 +35,7 @@ define Package/shadowsocks/Default
 	CATEGORY:=Extra packages
 	TITLE:=Lightweight Secured Socks5 Proxy
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
-	DEPENDS:=+zlib +libev +libcares +libpcre +libpthread +libsodium +libmbedtls +libustream-mbedtls +ipset +ip +iptables +iptables-mod-tproxy +iptables-mod-extra
+	DEPENDS:=+zlib +libev +libcares +libpcre +libpthread +libsodium +libmbedtls +libustream-mbedtls +ipset +ip-full +iptables +iptables-mod-tproxy +iptables-mod-extra
 endef
 
 Package/shadowsocks = $(Package/shadowsocks/Default)
@@ -55,7 +55,7 @@ define Package/shadowsocks/install
 	$(INSTALL_BIN) ./files/shadowsocks.init $(1)/etc/init.d/shadowsocks
 	$(INSTALL_DATA) ./files/shadowsocks.defaults $(1)/etc/uci-defaults/96-shadowsocks
 	$(INSTALL_DATA) ./files/shadowsocks.firewall $(1)/usr/share/shadowsocks/firewall.include
-	$(INSTALL_DATA) ./files/chnroute.txt $(1)/usr/share/shadowsocks/
+	$(INSTALL_DATA) ./files/chnroute.* $(1)/usr/share/shadowsocks/
 	$(INSTALL_DATA) ./files/shadowsocks.config $(1)/etc/config/shadowsocks
 endef
 
