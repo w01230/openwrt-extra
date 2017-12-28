@@ -12,4 +12,4 @@
 	2）download koolproxy form https://koolproxy.com/downloads/$(ARCH) ($(ARCH) = mips mipsel arm or x86_64)
 	
 ## Thanks:
-     Thanks for [crwnet](https://github.com/crwnet) [shadowsocks](https://github.com/shadowsocks) etc.
+     Thanks for [crwnet](https://github.com/crwnet), [shadowsocks](https://github.com/shadowsocks) etc.
