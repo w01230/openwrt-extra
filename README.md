@@ -2,9 +2,9 @@
 
 ## usage:
 
-	0) move extra to openwrt(or LEDE)/packages
-	
-	1) select luci app and make
+	0) add src-git extra https://github.com/w01230/openwrt-extra.git to feeds.conf.default 	
+	1) run ./script/feeds update -a then ./script/feeds install -a
+	2) select app and make
 
 ## bug:
 	do not start koolproxy
