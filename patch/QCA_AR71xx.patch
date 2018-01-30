@@ -1,0 +1,4192 @@
+From 47a803325deee7ac24fa7f0766ceacdbab79edad Mon Sep 17 00:00:00 2001
+From: Rosen Penev <rosenp@gmail.com>
+Date: Sun, 3 Dec 2017 20:31:40 -0800
+Subject: [PATCH] Switch to qualcomm ag71xx driver
+
+---
+ .../drivers/net/ethernet/atheros/ag71xx/ag71xx.h   |  254 ++-
+ .../net/ethernet/atheros/ag71xx/ag71xx_ar7240.c    |  402 +++--
+ .../net/ethernet/atheros/ag71xx/ag71xx_debugfs.c   |   49 +-
+ .../net/ethernet/atheros/ag71xx/ag71xx_ethtool.c   |  127 +-
+ .../net/ethernet/atheros/ag71xx/ag71xx_main.c      | 1748 +++++++++++++-------
+ .../net/ethernet/atheros/ag71xx/ag71xx_mdio.c      |  179 +-
+ .../net/ethernet/atheros/ag71xx/ag71xx_phy.c       |   53 +-
+ 7 files changed, 1797 insertions(+), 1015 deletions(-)
+
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx.h b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx.h
+index 7b1cc1e1032..b9d5dcac911 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx.h
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx.h
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -19,6 +20,7 @@
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
++#include <linux/proc_fs.h>
+ #include <linux/random.h>
+ #include <linux/spinlock.h>
+ #include <linux/interrupt.h>
+@@ -30,6 +32,7 @@
+ #include <linux/skbuff.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/workqueue.h>
++#include <linux/prefetch.h>
+ 
+ #include <linux/bitops.h>
+ 
+@@ -40,6 +43,13 @@
+ #define AG71XX_DRV_NAME		"ag71xx"
+ #define AG71XX_DRV_VERSION	"0.5.35"
+ 
++#define AR7240_NUM_PHYS        5
++
++/* For our NAPI weight bigger does *NOT* mean better - it means more
++ * D-cache misses and lots more wasted cycles than we'll ever
++ * possibly gain from saving instructions.
++ */
++#define AG71XX_NAPI_WEIGHT	32
+ #define AG71XX_OOM_REFILL	(1 + HZ/10)
+ 
+ #define AG71XX_INT_ERR	(AG71XX_INT_RX_BE | AG71XX_INT_TX_BE)
+@@ -50,16 +60,25 @@
+ #define AG71XX_INT_INIT	(AG71XX_INT_ERR | AG71XX_INT_POLL)
+ 
+ #define AG71XX_TX_MTU_LEN	1540
++#define AG71XX_RX_PKT_SIZE	\
++	(ETH_FRAME_LEN + ETH_FCS_LEN + VLAN_HLEN)
++#define AG71XX_RX_BUF_SIZE (AG71XX_RX_PKT_SIZE + NET_SKB_PAD + NET_IP_ALIGN)
++
++/* The 802.11n driver circa 10.1.389 requires a significant amount of headroom
++ * to avoid reallocating and copying when transmitting a buffer.  This causes
++ * this driver to pre-allocate enough headroom to avoid the reallocation later.
++ */
++#define AG71XX_HACK_WIFI_HEADROOM	128
+ 
+-#define AG71XX_TX_RING_SPLIT		512
+-#define AG71XX_TX_RING_DS_PER_PKT	DIV_ROUND_UP(AG71XX_TX_MTU_LEN, \
+-						     AG71XX_TX_RING_SPLIT)
+ #define AG71XX_TX_RING_SIZE_DEFAULT	128
+-#define AG71XX_RX_RING_SIZE_DEFAULT	256
++#define AG71XX_RX_RING_SIZE_DEFAULT	224
+ 
+-#define AG71XX_TX_RING_SIZE_MAX		128
++#define AG71XX_TX_RING_SIZE_MAX		256
+ #define AG71XX_RX_RING_SIZE_MAX		256
+ 
++#define AG71XX_JUMBO_LEN		9000
++#define DESC_JUMBO_PKTLEN_M		0x3FFF
++
+ #ifdef CONFIG_AG71XX_DEBUG
+ #define DBG(fmt, args...)	pr_debug(fmt, ## args)
+ #else
+@@ -75,38 +94,40 @@ do {									\
+ } while (0)
+ 
+ struct ag71xx_desc {
+-	u32	data;
+-	u32	ctrl;
++	volatile u32	data;
++	volatile u32	ctrl;
+ #define DESC_EMPTY	BIT(31)
+ #define DESC_MORE	BIT(24)
+ #define DESC_PKTLEN_M	0xfff
+-	u32	next;
+-	u32	pad;
++	volatile u32	next;
++	volatile u32	pad;
+ } __attribute__((aligned(4)));
+ 
+-#define AG71XX_DESC_SIZE	roundup(sizeof(struct ag71xx_desc), \
+-					L1_CACHE_BYTES)
+-
+ struct ag71xx_buf {
++	struct sk_buff		*skb;
++	struct ag71xx_desc	*desc;
++	struct ag71xx_buf	*next;
+ 	union {
+-		struct sk_buff	*skb;
+-		void		*rx_buf;
+-	};
+-	union {
++		u16		len;
+ 		dma_addr_t	dma_addr;
+-		unsigned long	timestamp;
+ 	};
+-	unsigned int		len;
+ };
+ 
++ /* RX or TX descriptor ring. */
+ struct ag71xx_ring {
++	/* "Hot" fields in the data path. */
++	struct ag71xx_buf	*curr;
++	struct ag71xx_buf	*dirty;
++	u16		size;
++	u16		used;
++
++	/* "Cold" fields - not used in the data path. */
+ 	struct ag71xx_buf	*buf;
++	u16		mask;
++	u16		desc_size;
+ 	u8			*descs_cpu;
+ 	dma_addr_t		descs_dma;
+-	u16			desc_split;
+-	u16			order;
+-	unsigned int		curr;
+-	unsigned int		dirty;
++	void __iomem		*iomem;
+ };
+ 
+ struct ag71xx_mdio {
+@@ -135,8 +156,8 @@ struct ag71xx_napi_stats {
+ 	unsigned long		tx_packets;
+ 	unsigned long		tx_packets_max;
+ 
+-	unsigned long		rx[NAPI_POLL_WEIGHT + 1];
+-	unsigned long		tx[NAPI_POLL_WEIGHT + 1];
++	unsigned long		rx[AG71XX_NAPI_WEIGHT + 1];
++	unsigned long		tx[AG71XX_NAPI_WEIGHT + 1];
+ };
+ 
+ struct ag71xx_debug {
+@@ -147,19 +168,39 @@ struct ag71xx_debug {
+ };
+ 
+ struct ag71xx {
+-	void __iomem		*mac_base;
++	/* Critical data related to the per-packet data path are clustered
++	 * early in this structure to help improve the D-cache footprint.
++	 */
++	struct ag71xx_ring	rx_ring ____cacheline_aligned;
++	struct ag71xx_ring	tx_ring ____cacheline_aligned;
++
++	void __iomem		*rx_ctrl_reg;
++	void __iomem		*rx_status_reg;
++	void __iomem		*tx_ctrl_reg;
++	void __iomem		*tx_status_reg;
++	void __iomem		*int_status_reg;
++
++	unsigned int		rx_buf_offset;
++	unsigned int		rx_buf_size;
+ 
+-	spinlock_t		lock;
+-	struct platform_device	*pdev;
+ 	struct net_device	*dev;
++	struct platform_device	*pdev;
++	/* Serialises access to regs */
++	spinlock_t		lock;
+ 	struct napi_struct	napi;
++	unsigned int		gmac_num;
++
++	/* From this point onwards we're not looking at per-packet fields. */
++	struct ag71xx_buf	*ring_bufs;
++	void __iomem		*mac_base;
++	void __iomem		*sgmii_base;
++	void __iomem		*pll_base;
+ 	u32			msg_enable;
+ 
+ 	struct ag71xx_desc	*stop_desc;
+ 	dma_addr_t		stop_desc_dma;
+ 
+-	struct ag71xx_ring	rx_ring;
+-	struct ag71xx_ring	tx_ring;
++	bool			tx_stopped;
+ 
+ 	struct mii_bus		*mii_bus;
+ 	struct phy_device	*phy_dev;
+@@ -169,13 +210,8 @@ struct ag71xx {
+ 	unsigned int		speed;
+ 	int			duplex;
+ 
+-	unsigned int		max_frame_len;
+-	unsigned int		desc_pktlen_mask;
+-	unsigned int		rx_buf_size;
+-
+-	struct delayed_work	restart_work;
++	struct work_struct	restart_work;
+ 	struct delayed_work	link_work;
+-	struct timer_list	oom_timer;
+ 
+ #ifdef CONFIG_AG71XX_DEBUG_FS
+ 	struct ag71xx_debug	debug;
+@@ -198,23 +234,6 @@ static inline struct ag71xx_platform_data *ag71xx_get_pdata(struct ag71xx *ag)
+ 	return ag->pdev->dev.platform_data;
+ }
+ 
+-static inline int ag71xx_desc_empty(struct ag71xx_desc *desc)
+-{
+-	return (desc->ctrl & DESC_EMPTY) != 0;
+-}
+-
+-static inline struct ag71xx_desc *
+-ag71xx_ring_desc(struct ag71xx_ring *ring, int idx)
+-{
+-	return (struct ag71xx_desc *) &ring->descs_cpu[idx * AG71XX_DESC_SIZE];
+-}
+-
+-static inline int
+-ag71xx_ring_size_order(int size)
+-{
+-	return fls(size - 1);
+-}
+-
+ /* Register offsets */
+ #define AG71XX_REG_MAC_CFG1	0x0000
+ #define AG71XX_REG_MAC_CFG2	0x0004
+@@ -254,10 +273,18 @@ ag71xx_ring_size_order(int size)
+ #define AG71XX_REG_INT_ENABLE	0x0198
+ #define AG71XX_REG_INT_STATUS	0x019c
+ 
++#define AG71XX_REG_FIFO_THRESH	0x01a4
+ #define AG71XX_REG_FIFO_DEPTH	0x01a8
+ #define AG71XX_REG_RX_SM	0x01b0
+ #define AG71XX_REG_TX_SM	0x01b4
+ 
++#define AG71XX_REG_IG_ACL	0x23c
++#define AG71XX_IG_ACL_FRA_DISABLE	0x60000000
++
++#define AG71XX_CFG_3_HD_VAL	0x00f00040
++#define AG71XX_FIFO_TH_HD_HALF_VAL	0x00880060
++#define AG71XX_FIFO_TH_HD_FULL_VAL	0x01d80160
++
+ #define MAC_CFG1_TXE		BIT(0)	/* Tx Enable */
+ #define MAC_CFG1_STX		BIT(1)	/* Synchronize Tx Enable */
+ #define MAC_CFG1_RXE		BIT(2)	/* Rx Enable */
+@@ -357,6 +384,9 @@ ag71xx_ring_size_order(int size)
+ #define MII_IND_BUSY		BIT(0)
+ #define MII_IND_INVALID		BIT(2)
+ 
++#define MII_PHY_SPEC_STATUS	0x11
++#define MII_PHY_LINK_STATUS	BIT(10)
++
+ #define TX_CTRL_TXE		BIT(0)	/* Tx Enable */
+ 
+ #define TX_STATUS_PS		BIT(0)	/* Packet Sent */
+@@ -369,6 +399,49 @@ ag71xx_ring_size_order(int size)
+ #define RX_STATUS_OF		BIT(2)	/* Rx Overflow */
+ #define RX_STATUS_BE		BIT(3)	/* Bus Error */
+ 
++typedef enum {
++	AG71XX_SGMII_SPEED_10T = 0,
++	AG71XX_SGMII_SPEED_100T,
++	AG71XX_SGMII_SPEED_1000T,
++} ag71xx_sgmii_speed_t;
++
++typedef enum {
++	AG71XX_SGMII_HALF_DUPLEX = 0,
++	AG71XX_SGMII_FULL_DUPLEX,
++} ag71xx_sgmii_duplex_t;
++
++#define SGMII_PHY_MGMT_CTRL   0x1c
++#define SGMII_SPEED_SEL1_SET(x)    (x << 6)
++#define SGMII_SPEED_SEL0_SET(x)    (x << 13)
++#define SGMII_PHY_RESET_SET(x)    (x << 15)
++#define SGMII_DUPLEX_SET(x)         (x << 8)
++
++#define SGMII_CONFIG   0x34
++#define SGMII_MODE_CTRL_SET(x)   (x)
++#define SGMII_FORCE_SPEED_SET(x)   (x << 5)
++#define SGMII_SPEED_SET(x)   (x << 6)
++
++#define SGMII_RESET		0x14
++#define SGMII_RX_CLK_N	BIT(0)
++#define SGMII_TX_CLK_N	BIT(1)
++#define SGMII_RX_125M	BIT(2)
++#define SGMII_TX_125M	BIT(3)
++#define SGMII_HW_RX_125M	BIT(4)
++
++#define SGMII_DEBUG  0x58
++#define SGMII_LINK_MAX_TRY 10
++
++#define AG71XX_PLL_SGMII  0x48
++#define AG71XX_PLL_GIGE  BIT(24)
++#define AG71XX_PLL_GIGE_CLK  BIT(25)
++#define AG71XX_PLL_100 0x101
++#define AG71XX_PLL_10 0x1313
++
++#define AG71XX_INTF_CTRL_SPEED			BIT(16)
++
++#define AG71XX_MAC0_OFFSET		0
++#define AG71XX_MAC1_OFFSET		6
++
+ static inline void ag71xx_check_reg_offset(struct ag71xx *ag, unsigned reg)
+ {
+ 	switch (reg) {
+@@ -382,20 +455,77 @@ static inline void ag71xx_check_reg_offset(struct ag71xx *ag, unsigned reg)
+ 	}
+ }
+ 
++static inline void ag71xx_wr_fast(void  __iomem *r, u32 value)
++{
++	__raw_writel(value, r);
++}
++
++static inline void ag71xx_wr_flush(void  __iomem *r)
++{
++	(void)__raw_readl(r);
++}
++
+ static inline void ag71xx_wr(struct ag71xx *ag, unsigned reg, u32 value)
+ {
++	void __iomem *r;
++
+ 	ag71xx_check_reg_offset(ag, reg);
+ 
+-	__raw_writel(value, ag->mac_base + reg);
++	r = ag->mac_base + reg;
++	__raw_writel(value, r);
+ 	/* flush write */
+-	(void) __raw_readl(ag->mac_base + reg);
++	(void)__raw_readl(r);
++}
++
++static inline void ag71xx_sgmii_wr(struct ag71xx *ag, unsigned reg, u32 value)
++{
++	void __iomem *r;
++
++	r = ag->sgmii_base + reg;
++	__raw_writel(value, r);
++	/* flush write */
++	(void)__raw_readl(r);
++}
++
++static inline void ag71xx_pll_wr(struct ag71xx *ag, unsigned reg, u32 value)
++{
++	void __iomem *r;
++
++	r = ag->pll_base + reg;
++	__raw_writel(value, r);
++	/* flush write */
++	(void)__raw_readl(r);
++}
++
++static inline u32 ag71xx_rr_fast(void  __iomem *r)
++{
++	return __raw_readl(r);
++}
++
++static inline u32 ag71xx_pll_rr(struct ag71xx *ag, unsigned reg)
++{
++	void __iomem *r;
++
++	r = ag->pll_base + reg;
++	return __raw_readl(r);
++}
++
++static inline u32 ag71xx_sgmii_rr(struct ag71xx *ag, unsigned reg)
++{
++	void __iomem *r;
++
++	r = ag->sgmii_base + reg;
++	return __raw_readl(r);
+ }
+ 
+ static inline u32 ag71xx_rr(struct ag71xx *ag, unsigned reg)
+ {
++	void __iomem *r;
++
+ 	ag71xx_check_reg_offset(ag, reg);
+ 
+-	return __raw_readl(ag->mac_base + reg);
++	r = ag->mac_base + reg;
++	return __raw_readl(r);
+ }
+ 
+ static inline void ag71xx_sb(struct ag71xx *ag, unsigned reg, u32 mask)
+@@ -419,7 +549,7 @@ static inline void ag71xx_cb(struct ag71xx *ag, unsigned reg, u32 mask)
+ 	r = ag->mac_base + reg;
+ 	__raw_writel(__raw_readl(r) & ~mask, r);
+ 	/* flush write */
+-	(void) __raw_readl(r);
++	(void)__raw_readl(r);
+ }
+ 
+ static inline void ag71xx_int_enable(struct ag71xx *ag, u32 ints)
+@@ -488,5 +618,17 @@ u16 ar7240sw_phy_read(struct mii_bus *mii, unsigned phy_addr,
+ 		      unsigned reg_addr);
+ int ar7240sw_phy_write(struct mii_bus *mii, unsigned phy_addr,
+ 		       unsigned reg_addr, u16 reg_val);
++void ag71xx_sgmii_flag_set(u8 flag);
++u8 ag71xx_sgmii_flag_get(void);
++void ag71xx_sgmii_set_link(
++	struct ag71xx *ag, ag71xx_sgmii_speed_t speed,
++	ag71xx_sgmii_duplex_t duplex);
++void ag71xx_sgmii_get_link(
++	struct ag71xx *ag, ag71xx_sgmii_speed_t *speed,
++	ag71xx_sgmii_duplex_t *duplex);
++
++typedef int (*port_link_notify_func)(unsigned char port_id,
++		unsigned char link, unsigned char speed, unsigned char duplex);
++void ar7240_port_link_notify_register(port_link_notify_func func);
+ 
+ #endif /* _AG71XX_H */
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ar7240.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ar7240.c
+index 3f2f64e2aef..cf3cf3f6b92 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ar7240.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ar7240.c
+@@ -1,7 +1,8 @@
+ /*
+  *  Driver for the built-in ethernet switch of the Atheros AR7240 SoC
++ *  Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+  *  Copyright (c) 2010 Gabor Juhos <juhosg@openwrt.org>
+- *  Copyright (c) 2010 Felix Fietkau <nbd@nbd.name>
++ *  Copyright (c) 2010 Felix Fietkau <nbd@openwrt.org>
+  *
+  *  This program is free software; you can redistribute it and/or modify it
+  *  under the terms of the GNU General Public License version 2 as published
+@@ -34,9 +35,10 @@
+ 
+ #define AR7240_REG_FLOOD_MASK		0x2c
+ #define AR7240_FLOOD_MASK_BROAD_TO_CPU	BIT(26)
++#define AR7240_FLOOD_MASK_UNICAST_TO_CPU	BIT(0)
+ 
+ #define AR7240_REG_GLOBAL_CTRL		0x30
+-#define AR7240_GLOBAL_CTRL_MTU_M	BITM(11)
++#define AR7240_GLOBAL_CTRL_MTU_M	BITM(14)
+ #define AR9340_GLOBAL_CTRL_MTU_M	BITM(14)
+ 
+ #define AR7240_REG_VTU			0x0040
+@@ -77,7 +79,6 @@
+ 
+ #define AR7240_REG_CPU_PORT		0x78
+ #define AR7240_MIRROR_PORT_S		4
+-#define AR7240_MIRROR_PORT_M		BITM(4)
+ #define AR7240_CPU_PORT_EN		BIT(8)
+ 
+ #define AR7240_REG_MIB_FUNCTION0	0x80
+@@ -148,7 +149,6 @@
+ #define AR7240_PORT_VLAN_MODE_VLAN_ONLY	2
+ #define AR7240_PORT_VLAN_MODE_SECURE	3
+ 
+-
+ #define AR7240_REG_STATS_BASE(_port)	(0x20000 + (_port) * 0x100)
+ 
+ #define AR7240_STATS_RXBROAD		0x00
+@@ -193,11 +193,13 @@
+ 
+ #define AR7240_PORT_CPU		0
+ #define AR7240_NUM_PORTS	6
+-#define AR7240_NUM_PHYS		5
+ 
+ #define AR7240_PHY_ID1		0x004d
+ #define AR7240_PHY_ID2		0xd041
+ 
++#define AR7240_PHY_SYS_CTRL_MODE	0x5
++#define AR7240_PHY_CLASS_MODE		BIT(1)
++
+ #define AR934X_PHY_ID1		0x004d
+ #define AR934X_PHY_ID2		0xd042
+ 
+@@ -211,11 +213,17 @@
+ #define   AR934X_REG_OPER_MODE1_PHY4_MII_EN	BIT(28)
+ 
+ #define AR934X_REG_FLOOD_MASK		0x2c
++#define   AR934X_IGMP_JOIN_LEAVE_DP	BIT(8)
+ #define   AR934X_FLOOD_MASK_MC_DP(_p)	BIT(16 + (_p))
++#define   AR934X_FLOOD_MASK_MC		BITS(16, 7)
+ #define   AR934X_FLOOD_MASK_BC_DP(_p)	BIT(25 + (_p))
++#define   AR934X_FLOOD_MASK_UC_DP(_p)	BIT(0 + (_p))
+ 
+ #define AR934X_REG_QM_CTRL		0x3c
++#define   AR934X_IGMP_COPY_EN		BIT(11)
+ #define   AR934X_QM_CTRL_ARP_EN		BIT(15)
++#define   AR934X_IGMP_V3_EN		BIT(19)
++#define   AR934X_IGMP_JOIN_NEW_EN	BIT(22)
+ 
+ #define AR934X_REG_AT_CTRL		0x5c
+ #define   AR934X_AT_CTRL_AGE_TIME	BITS(0, 15)
+@@ -226,9 +234,14 @@
+ 
+ #define AR934X_REG_PORT_BASE(_port)	(0x100 + (_port) * 0x100)
+ 
++#define AR934X_REG_PORT_CONTROL(_port)	(AR934X_REG_PORT_BASE((_port)) + 0x04)
++#define   AR934X_PORT_CONTROL_IGMP_MLD_EN		BIT(10)
++#define   AR934X_PORT_CONTROL_IGMP_JOIN_EN		BIT(20)
++#define   AR934X_PORT_CONTROL_IGMP_LEAVE_EN		BIT(21)
++
+ #define AR934X_REG_PORT_VLAN1(_port)	(AR934X_REG_PORT_BASE((_port)) + 0x08)
+ #define   AR934X_PORT_VLAN1_DEFAULT_SVID_S		0
+-#define   AR934X_PORT_VLAN1_FORCE_DEFAULT_VID_EN 	BIT(12)
++#define   AR934X_PORT_VLAN1_FORCE_DEFAULT_VID_EN	BIT(12)
+ #define   AR934X_PORT_VLAN1_PORT_TLS_MODE		BIT(13)
+ #define   AR934X_PORT_VLAN1_PORT_VLAN_PROP_EN		BIT(14)
+ #define   AR934X_PORT_VLAN1_PORT_CLONE_EN		BIT(15)
+@@ -294,6 +307,7 @@ struct ar7240sw {
+ 	struct ag71xx_switch_platform_data *swdata;
+ 	struct switch_dev swdev;
+ 	int num_ports;
++	int num_ports_linkup;
+ 	u8 ver;
+ 	bool vlan;
+ 	u16 vlan_id[AR7240_MAX_VLANS];
+@@ -367,8 +381,8 @@ static u32 __ar7240sw_reg_read(struct mii_bus *mii, u32 reg)
+ 
+ 	local_irq_save(flags);
+ 	ag71xx_mdio_mii_write(mii->priv, 0x1f, 0x10, mk_high_addr(reg));
+-	lo = (u32) ag71xx_mdio_mii_read(mii->priv, phy_addr, phy_reg);
+-	hi = (u32) ag71xx_mdio_mii_read(mii->priv, phy_addr, phy_reg + 1);
++	lo = (u32)ag71xx_mdio_mii_read(mii->priv, phy_addr, phy_reg);
++	hi = (u32)ag71xx_mdio_mii_read(mii->priv, phy_addr, phy_reg + 1);
+ 	local_irq_restore(flags);
+ 
+ 	return (hi << 16) | lo;
+@@ -583,15 +597,15 @@ static void ar7240sw_setup(struct ar7240sw *as)
+ 		/* Enable ARP frame acknowledge */
+ 		ar7240sw_reg_set(mii, AR934X_REG_QM_CTRL,
+ 				 AR934X_QM_CTRL_ARP_EN);
+-		/* Enable Broadcast/Multicast frames transmitted to the CPU */
++		/* Enable Broadcast frames transmitted to the CPU */
++		ar7240sw_reg_set(mii, AR934X_REG_FLOOD_MASK,
++				 AR934X_FLOOD_MASK_BC_DP(0));
++		/* Enable Multicast frames transmitted to the CPU */
+ 		ar7240sw_reg_set(mii, AR934X_REG_FLOOD_MASK,
+-				 AR934X_FLOOD_MASK_BC_DP(0) |
+ 				 AR934X_FLOOD_MASK_MC_DP(0));
+-
+-		/* setup MTU */
+-		ar7240sw_reg_rmw(mii, AR7240_REG_GLOBAL_CTRL,
+-				 AR9340_GLOBAL_CTRL_MTU_M,
+-				 AR9340_GLOBAL_CTRL_MTU_M);
++		/* Enable Unicast frames transmitted to the CPU */
++		ar7240sw_reg_set(mii, AR934X_REG_FLOOD_MASK,
++				 AR934X_FLOOD_MASK_UC_DP(0));
+ 
+ 		/* Enable MIB counters */
+ 		ar7240sw_reg_set(mii, AR7240_REG_MIB_FUNCTION0,
+@@ -608,13 +622,15 @@ static void ar7240sw_setup(struct ar7240sw *as)
+ 		/* Enable Broadcast frames transmitted to the CPU */
+ 		ar7240sw_reg_set(mii, AR7240_REG_FLOOD_MASK,
+ 				 AR7240_FLOOD_MASK_BROAD_TO_CPU);
+-
+-		/* setup MTU */
+-		ar7240sw_reg_rmw(mii, AR7240_REG_GLOBAL_CTRL,
+-				 AR7240_GLOBAL_CTRL_MTU_M,
+-				 AR7240_GLOBAL_CTRL_MTU_M);
++		/* Enable Unicast frames transmitted to the CPU */
++		ar7240sw_reg_set(mii, AR7240_REG_FLOOD_MASK,
++				 AR7240_FLOOD_MASK_UNICAST_TO_CPU);
+ 	}
+ 
++	/* setup MTU */
++	ar7240sw_reg_rmw(mii, AR7240_REG_GLOBAL_CTRL, AR7240_GLOBAL_CTRL_MTU_M,
++			 1536);
++
+ 	/* setup Service TAG */
+ 	ar7240sw_reg_rmw(mii, AR7240_REG_SERVICE_TAG, AR7240_SERVICE_TAG_M, 0);
+ }
+@@ -649,6 +665,9 @@ static int ar7240sw_reset(struct ar7240sw *as)
+ 	struct mii_bus *mii = as->mii_bus;
+ 	int ret;
+ 	int i;
++	u8 mask;
++
++	mask = ~as->swdata->phy_poll_mask;
+ 
+ 	/* Set all ports to disabled state. */
+ 	for (i = 0; i < AR7240_NUM_PORTS; i++)
+@@ -666,6 +685,8 @@ static int ar7240sw_reset(struct ar7240sw *as)
+ 
+ 	/* setup PHYs */
+ 	for (i = 0; i < AR7240_NUM_PHYS; i++) {
++		if (!(mask & BIT(i)))
++			continue;
+ 		ar7240sw_phy_write(mii, i, MII_ADVERTISE,
+ 				   ADVERTISE_ALL | ADVERTISE_PAUSE_CAP |
+ 				   ADVERTISE_PAUSE_ASYM);
+@@ -676,6 +697,19 @@ static int ar7240sw_reset(struct ar7240sw *as)
+ 	if (ret)
+ 		return ret;
+ 
++	/* set up class mode */
++	if (as->swdata->phy_classab_en) {
++		u16 val;
++
++		for (i = 0; i < AR7240_NUM_PHYS; i++) {
++			ar7240sw_phy_write(mii, i, 0x1d,
++				AR7240_PHY_SYS_CTRL_MODE);
++			val = ar7240sw_phy_read(mii, i, 0x1e);
++			val &= ~(AR7240_PHY_CLASS_MODE);
++			ar7240sw_phy_write(mii, i, 0x1e, val);
++		}
++	}
++
+ 	ar7240sw_setup(as);
+ 	return ret;
+ }
+@@ -732,7 +766,8 @@ static void ar7240sw_setup_port(struct ar7240sw *as, unsigned port, u8 portmask)
+ 
+ 	/* allow the port to talk to all other ports, but exclude its
+ 	 * own ID to prevent frames from being reflected back to the
+-	 * port that they came from */
++	 * port that they came from
++	 */
+ 	portmask &= ar7240sw_port_mask_but(as, port);
+ 
+ 	ar7240sw_reg_write(mii, AR7240_REG_PORT_CTRL(port), ctrl);
+@@ -773,6 +808,7 @@ ar7240_set_vid(struct switch_dev *dev, const struct switch_attr *attr,
+ 		struct switch_val *val)
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
++
+ 	as->vlan_id[val->port_vlan] = val->value.i;
+ 	return 0;
+ }
+@@ -782,6 +818,7 @@ ar7240_get_vid(struct switch_dev *dev, const struct switch_attr *attr,
+ 		struct switch_val *val)
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
++
+ 	val->value.i = as->vlan_id[val->port_vlan];
+ 	return 0;
+ }
+@@ -850,7 +887,8 @@ ar7240_set_ports(struct switch_dev *dev, struct switch_val *val)
+ 			as->pvid[p->id] = val->port_vlan;
+ 
+ 			/* make sure that an untagged port does not
+-			 * appear in other vlans */
++			 * appear in other vlans
++			 */
+ 			for (j = 0; j < AR7240_MAX_VLANS; j++) {
+ 				if (j == val->port_vlan)
+ 					continue;
+@@ -868,6 +906,7 @@ ar7240_set_vlan(struct switch_dev *dev, const struct switch_attr *attr,
+ 		struct switch_val *val)
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
++
+ 	as->vlan = !!val->value.i;
+ 	return 0;
+ }
+@@ -877,10 +916,96 @@ ar7240_get_vlan(struct switch_dev *dev, const struct switch_attr *attr,
+ 		struct switch_val *val)
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
++
+ 	val->value.i = as->vlan;
+ 	return 0;
+ }
+ 
++static int
++ar7240_set_max_frame_size(struct switch_dev *dev,
++		const struct switch_attr *attr,
++		struct switch_val *val)
++{
++	struct ar7240sw *as = sw_to_ar7240(dev);
++	struct mii_bus *mii = as->mii_bus;
++
++	ar7240sw_reg_rmw(mii, AR7240_REG_GLOBAL_CTRL,
++			AR7240_GLOBAL_CTRL_MTU_M,
++			val->value.i + 8 + 2);
++	return 0;
++}
++
++static int
++ar7240_get_max_frame_size(struct switch_dev *dev,
++		const struct switch_attr *attr,
++		struct switch_val *val)
++{
++	u32 v = 0;
++	struct ar7240sw *as = sw_to_ar7240(dev);
++	struct mii_bus *mii = as->mii_bus;
++
++	v = ar7240sw_reg_read(mii, AR7240_REG_GLOBAL_CTRL);
++	v &= AR7240_GLOBAL_CTRL_MTU_M;
++	val->value.i = v;
++	return 0;
++}
++
++static int
++ar7240_igmp_snooping(struct switch_dev *dev, const struct switch_attr *attr,
++		struct switch_val *val)
++{
++	u32 v = 0, i;
++	struct ar7240sw *as = sw_to_ar7240(dev);
++	struct mii_bus *mii = as->mii_bus;
++
++	if (!sw_is_ar934x(as))
++		return 0;
++
++	if (val->value.i) {
++		printk(KERN_INFO "ar934x build in switch(s27): Enable igmp snooping function.\n");
++		for (i = 0; i < as->swdev.ports; i++) {
++			v = ar7240sw_reg_read(mii, AR934X_REG_PORT_CONTROL(i));
++			v |= AR934X_PORT_CONTROL_IGMP_MLD_EN |
++					AR934X_PORT_CONTROL_IGMP_JOIN_EN |
++					AR934X_PORT_CONTROL_IGMP_LEAVE_EN;
++			ar7240sw_reg_write(mii, AR934X_REG_PORT_CONTROL(i), v);
++		}
++
++		v = ar7240sw_reg_read(mii, AR934X_REG_QM_CTRL);
++		v |= AR934X_IGMP_COPY_EN | AR934X_IGMP_V3_EN |
++			AR934X_IGMP_JOIN_NEW_EN;
++		ar7240sw_reg_write(mii, AR934X_REG_QM_CTRL, v);
++
++		v = ar7240sw_reg_read(mii, AR934X_REG_FLOOD_MASK);
++		v |= AR934X_IGMP_JOIN_LEAVE_DP;
++		v &= ~(AR934X_FLOOD_MASK_MC);
++		ar7240sw_reg_write(mii, AR934X_REG_FLOOD_MASK, v);
++	} else {
++		printk(KERN_INFO
++			"ar934x build in switch(s27): Disable igmp snooping.\n");
++		for (i = 0; i < as->swdev.ports; i++) {
++			v = ar7240sw_reg_read(mii, AR934X_REG_PORT_CONTROL(i));
++			v &= ~(AR934X_PORT_CONTROL_IGMP_MLD_EN |
++					AR934X_PORT_CONTROL_IGMP_JOIN_EN |
++					AR934X_PORT_CONTROL_IGMP_LEAVE_EN);
++			ar7240sw_reg_write(mii,
++				AR934X_REG_PORT_CONTROL(i), v);
++		}
++
++		v = ar7240sw_reg_read(mii, AR934X_REG_QM_CTRL);
++		v &= ~(AR934X_IGMP_COPY_EN | AR934X_IGMP_V3_EN |
++			AR934X_IGMP_JOIN_NEW_EN);
++		ar7240sw_reg_write(mii, AR934X_REG_QM_CTRL, v);
++
++		v = ar7240sw_reg_read(mii, AR934X_REG_FLOOD_MASK);
++		v &= ~(AR934X_IGMP_JOIN_LEAVE_DP);
++		v |= AR934X_FLOOD_MASK_MC;
++		ar7240sw_reg_write(mii, AR934X_REG_FLOOD_MASK, v);
++	}
++
++	return 0;
++}
++
+ static void
+ ar7240_vtu_op(struct ar7240sw *as, u32 op, u32 val)
+ {
+@@ -911,7 +1036,8 @@ ar7240_hw_apply(struct switch_dev *dev)
+ 	memset(portmask, 0, sizeof(portmask));
+ 	if (as->vlan) {
+ 		/* calculate the port destination masks and load vlans
+-		 * into the vlan translation unit */
++		 * into the vlan translation unit
++		 */
+ 		for (j = 0; j < AR7240_MAX_VLANS; j++) {
+ 			u8 vp = as->vlan_table[j];
+ 
+@@ -920,6 +1046,7 @@ ar7240_hw_apply(struct switch_dev *dev)
+ 
+ 			for (i = 0; i < as->swdev.ports; i++) {
+ 				u8 mask = (1 << i);
++
+ 				if (vp & mask)
+ 					portmask[i] |= vp & ~mask;
+ 			}
+@@ -931,7 +1058,8 @@ ar7240_hw_apply(struct switch_dev *dev)
+ 		}
+ 	} else {
+ 		/* vlan disabled:
+-		 * isolate all ports, but connect them to the cpu port */
++		 * isolate all ports, but connect them to the cpu port
++		 */
+ 		for (i = 0; i < as->swdev.ports; i++) {
+ 			if (i == AR7240_PORT_CPU)
+ 				continue;
+@@ -952,6 +1080,7 @@ static int
+ ar7240_reset_switch(struct switch_dev *dev)
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
++
+ 	ar7240sw_reset(as);
+ 	return 0;
+ }
+@@ -964,7 +1093,7 @@ ar7240_get_port_link(struct switch_dev *dev, int port,
+ 	struct mii_bus *mii = as->mii_bus;
+ 	u32 status;
+ 
+-	if (port >= AR7240_NUM_PORTS)
++	if (port > AR7240_NUM_PORTS)
+ 		return -EINVAL;
+ 
+ 	status = ar7240sw_reg_read(mii, AR7240_REG_PORT_STATUS(port));
+@@ -1001,7 +1130,7 @@ ar7240_get_port_stats(struct switch_dev *dev, int port,
+ {
+ 	struct ar7240sw *as = sw_to_ar7240(dev);
+ 
+-	if (port >= AR7240_NUM_PORTS)
++	if (port > AR7240_NUM_PORTS)
+ 		return -EINVAL;
+ 
+ 	ar7240sw_capture_stats(as);
+@@ -1014,134 +1143,6 @@ ar7240_get_port_stats(struct switch_dev *dev, int port,
+ 	return 0;
+ }
+ 
+-static int
+-ar7240_set_mirror_monitor_port(struct switch_dev *dev,
+-				const struct switch_attr *attr,
+-				struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	int port = val->value.i;
+-
+-	if (port > 15)
+-		return -EINVAL;
+-
+-	ar7240sw_reg_rmw(mii, AR7240_REG_CPU_PORT,
+-		AR7240_MIRROR_PORT_M << AR7240_MIRROR_PORT_S,
+-		port << AR7240_MIRROR_PORT_S);
+-
+-	return 0;
+-}
+-
+-static int
+-ar7240_get_mirror_monitor_port(struct switch_dev *dev,
+-				const struct switch_attr *attr,
+-				struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	u32 ret;
+-
+-	ret = ar7240sw_reg_read(mii, AR7240_REG_CPU_PORT);
+-	val->value.i = (ret >> AR7240_MIRROR_PORT_S) & AR7240_MIRROR_PORT_M;
+-
+-	return 0;
+-}
+-
+-static int
+-ar7240_set_mirror_rx(struct switch_dev *dev, const struct switch_attr *attr,
+-		      struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	int port = val->port_vlan;
+-
+-	if (port >= dev->ports)
+-		return -EINVAL;
+-
+-	if (val && val->value.i == 1)
+-		ar7240sw_reg_set(mii, AR7240_REG_PORT_CTRL(port),
+-			AR7240_PORT_CTRL_MIRROR_RX);
+-	else
+-		ar7240sw_reg_rmw(mii, AR7240_REG_PORT_CTRL(port),
+-			AR7240_PORT_CTRL_MIRROR_RX, 0);
+-
+-	return 0;
+-}
+-
+-static int
+-ar7240_get_mirror_rx(struct switch_dev *dev, const struct switch_attr *attr,
+-		      struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	u32 ctrl;
+-
+-	int port = val->port_vlan;
+-
+-	if (port >= dev->ports)
+-		return -EINVAL;
+-
+-	ctrl = ar7240sw_reg_read(mii, AR7240_REG_PORT_CTRL(port));
+-
+-	if ((ctrl & AR7240_PORT_CTRL_MIRROR_RX) == AR7240_PORT_CTRL_MIRROR_RX)
+-		val->value.i = 1;
+-	else
+-		val->value.i = 0;
+-
+-	return 0;
+-}
+-
+-static int
+-ar7240_set_mirror_tx(struct switch_dev *dev, const struct switch_attr *attr,
+-		      struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	int port = val->port_vlan;
+-
+-	if (port >= dev->ports)
+-		return -EINVAL;
+-
+-	if (val && val->value.i == 1)
+-		ar7240sw_reg_set(mii, AR7240_REG_PORT_CTRL(port),
+-			AR7240_PORT_CTRL_MIRROR_TX);
+-	else
+-		ar7240sw_reg_rmw(mii, AR7240_REG_PORT_CTRL(port),
+-			AR7240_PORT_CTRL_MIRROR_TX, 0);
+-
+-	return 0;
+-}
+-
+-static int
+-ar7240_get_mirror_tx(struct switch_dev *dev, const struct switch_attr *attr,
+-		      struct switch_val *val)
+-{
+-	struct ar7240sw *as = sw_to_ar7240(dev);
+-	struct mii_bus *mii = as->mii_bus;
+-
+-	u32 ctrl;
+-
+-	int port = val->port_vlan;
+-
+-	if (port >= dev->ports)
+-		return -EINVAL;
+-
+-	ctrl = ar7240sw_reg_read(mii, AR7240_REG_PORT_CTRL(port));
+-
+-	if ((ctrl & AR7240_PORT_CTRL_MIRROR_TX) == AR7240_PORT_CTRL_MIRROR_TX)
+-		val->value.i = 1;
+-	else
+-		val->value.i = 0;
+-
+-	return 0;
+-}
+-
+ static struct switch_attr ar7240_globals[] = {
+ 	{
+ 		.type = SWITCH_TYPE_INT,
+@@ -1153,33 +1154,23 @@ static struct switch_attr ar7240_globals[] = {
+ 	},
+ 	{
+ 		.type = SWITCH_TYPE_INT,
+-		.name = "mirror_monitor_port",
+-		.description = "Mirror monitor port",
+-		.set = ar7240_set_mirror_monitor_port,
+-		.get = ar7240_get_mirror_monitor_port,
+-		.max = 15
+-	},
+-};
+-
+-static struct switch_attr ar7240_port[] = {
+-	{
+-		.type = SWITCH_TYPE_INT,
+-		.name = "enable_mirror_rx",
+-		.description = "Enable mirroring of RX packets",
+-		.set = ar7240_set_mirror_rx,
+-		.get = ar7240_get_mirror_rx,
+-		.max = 1
++		.name = "max_frame_size",
++		.description = "Max frame size can be rx and tx by mac",
++		.set = ar7240_set_max_frame_size,
++		.get = ar7240_get_max_frame_size,
++		.max = 9018
+ 	},
+ 	{
+ 		.type = SWITCH_TYPE_INT,
+-		.name = "enable_mirror_tx",
+-		.description = "Enable mirroring of TX packets",
+-		.set = ar7240_set_mirror_tx,
+-		.get = ar7240_get_mirror_tx,
+-		.max = 1
++		.name = "igmp_snooping",
++		.description = "Enable/Disable igmp snooping func on switch",
++		.set = ar7240_igmp_snooping
+ 	},
+ };
+ 
++static struct switch_attr ar7240_port[] = {
++};
++
+ static struct switch_attr ar7240_vlan[] = {
+ 	{
+ 		.type = SWITCH_TYPE_INT,
+@@ -1300,28 +1291,77 @@ static struct ar7240sw *ar7240_probe(struct ag71xx *ag)
+ 	return NULL;
+ }
+ 
+-static void link_function(struct work_struct *work) {
++static u16 ar7240_phy_link[AR7240_NUM_PHYS] = {0};
++static u16 ar7240_phy_speed[AR7240_NUM_PHYS] = {0};
++static u16 ar7240_phy_duplex[AR7240_NUM_PHYS] = {0};
++static port_link_notify_func ar7240_port_link_callback;
++
++void ar7240_port_link_notify_register(port_link_notify_func func)
++{
++	u32 phy_id;
++
++	ar7240_port_link_callback = func;
++
++	for (phy_id = 0; phy_id < AR7240_NUM_PHYS; phy_id++) {
++		if (ar7240_phy_link[phy_id])
++			(*func)(phy_id + 1,
++				ar7240_phy_link[phy_id],
++				ar7240_phy_speed[phy_id],
++				ar7240_phy_duplex[phy_id]);
++	}
++}
++EXPORT_SYMBOL(ar7240_port_link_notify_register);
++
++static void link_function(struct work_struct *work)
++{
+ 	struct ag71xx *ag = container_of(work, struct ag71xx, link_work.work);
+ 	struct ar7240sw *as = ag->phy_priv;
+ 	unsigned long flags;
+ 	u8 mask;
+ 	int i;
+-	int status = 0;
++	int status = 0, link_up_count = 0;
+ 
+ 	mask = ~as->swdata->phy_poll_mask;
+ 	for (i = 0; i < AR7240_NUM_PHYS; i++) {
+ 		int link;
+-
++		u16 phy_status, speed, duplex;
+ 		if (!(mask & BIT(i)))
+ 			continue;
+ 
+-		link = ar7240sw_phy_read(ag->mii_bus, i, MII_BMSR);
+-		if (link & BMSR_LSTATUS) {
++		phy_status = ar7240sw_phy_read(ag->mii_bus,
++					       i, MII_PHY_SPEC_STATUS);
++		link = (phy_status & MII_PHY_LINK_STATUS) ? 1 : 0;
++		if (link) {
+ 			status = 1;
+-			break;
++			link_up_count++;
++		}
++		if (link != ar7240_phy_link[i]) {
++			speed = (phy_status >> 14) & 0x3;
++			duplex = (phy_status >> 13) & 0x1;
++			ar7240_phy_link[i] = link;
++			ar7240_phy_speed[i] = speed;
++			ar7240_phy_duplex[i] = duplex;
++			if (ar7240_port_link_callback)
++				(*ar7240_port_link_callback)(i + 1,
++							     link,
++							     speed, duplex);
+ 		}
+ 	}
+ 
++	if (link_up_count != 0 && as->num_ports_linkup != link_up_count) {
++
++		/* Set flowcontrol threshold based on linkup count */
++
++		if (link_up_count == 1)
++			ar7240sw_reg_write(as->mii_bus, 0x34, 0x16602090);
++		else if (link_up_count == 2)
++			ar7240sw_reg_write(as->mii_bus, 0x34, 0x90bcc0ff);
++		else if (link_up_count > 2)
++			ar7240sw_reg_write(as->mii_bus, 0x34, 0xb0c0c0ff);
++
++		as->num_ports_linkup = link_up_count;
++	}
++
+ 	spin_lock_irqsave(&ag->lock, flags);
+ 	if (status != ag->link) {
+ 		ag->link = status;
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_debugfs.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_debugfs.c
+index 89cea0c0f5a..65bc82cfb92 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_debugfs.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_debugfs.c
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -78,7 +79,7 @@ void ag71xx_debugfs_update_napi_stats(struct ag71xx *ag, int rx, int tx)
+ 	if (rx) {
+ 		stats->rx_count++;
+ 		stats->rx_packets += rx;
+-		if (rx <= NAPI_POLL_WEIGHT)
++		if (rx <= AG71XX_NAPI_WEIGHT)
+ 			stats->rx[rx]++;
+ 		if (rx > stats->rx_packets_max)
+ 			stats->rx_packets_max = rx;
+@@ -87,7 +88,7 @@ void ag71xx_debugfs_update_napi_stats(struct ag71xx *ag, int rx, int tx)
+ 	if (tx) {
+ 		stats->tx_count++;
+ 		stats->tx_packets += tx;
+-		if (tx <= NAPI_POLL_WEIGHT)
++		if (tx <= AG71XX_NAPI_WEIGHT)
+ 			stats->tx[tx]++;
+ 		if (tx > stats->tx_packets_max)
+ 			stats->tx_packets_max = tx;
+@@ -121,7 +122,7 @@ static ssize_t read_file_napi_stats(struct file *file, char __user *user_buf,
+ 	len += snprintf(buf + len, buflen - len, "%3s  %10s %10s\n",
+ 			"len", "rx", "tx");
+ 
+-	for (i = 1; i <= NAPI_POLL_WEIGHT; i++)
++	for (i = 1; i <= AG71XX_NAPI_WEIGHT; i++)
+ 		len += snprintf(buf + len, buflen - len,
+ 				"%3d: %10lu %10lu\n",
+ 				i, stats->rx[i], stats->tx[i]);
+@@ -157,49 +158,41 @@ static ssize_t read_file_ring(struct file *file, char __user *user_buf,
+ 			      struct ag71xx_ring *ring,
+ 			      unsigned desc_reg)
+ {
+-	int ring_size = BIT(ring->order);
+-	int ring_mask = ring_size - 1;
+ 	char *buf;
+ 	unsigned int buflen;
+ 	unsigned int len = 0;
+ 	unsigned long flags;
+ 	ssize_t ret;
+-	int curr;
+-	int dirty;
+ 	u32 desc_hw;
+ 	int i;
+ 
+-	buflen = (ring_size * DESC_PRINT_LEN);
++	buflen = (ring->size * DESC_PRINT_LEN);
+ 	buf = kmalloc(buflen, GFP_KERNEL);
+ 	if (!buf)
+ 		return -ENOMEM;
+ 
+ 	len += snprintf(buf + len, buflen - len,
+-			"Idx ... %-8s %-8s %-8s %-8s . %-10s\n",
+-			"desc", "next", "data", "ctrl", "timestamp");
++			"Idx ... %-8s %-8s %-8s %-8s\n",
++			"desc", "next", "data", "ctrl");
+ 
+ 	spin_lock_irqsave(&ag->lock, flags);
+ 
+-	curr = (ring->curr & ring_mask);
+-	dirty = (ring->dirty & ring_mask);
+ 	desc_hw = ag71xx_rr(ag, desc_reg);
+-	for (i = 0; i < ring_size; i++) {
++	for (i = 0; i < ring->size; i++) {
+ 		struct ag71xx_buf *ab = &ring->buf[i];
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
+-		u32 desc_dma = ((u32) ring->descs_dma) + i * AG71XX_DESC_SIZE;
++		u32 desc_dma = ((u32)ring->descs_dma) + i * ring->desc_size;
+ 
+ 		len += snprintf(buf + len, buflen - len,
+-			"%3d %c%c%c %08x %08x %08x %08x %c %10lu\n",
++			"%3d %c%c%c %08x %08x %08x %08x %c\n",
+ 			i,
+-			(i == curr) ? 'C' : ' ',
+-			(i == dirty) ? 'D' : ' ',
++			(&ring->buf[i] == ring->curr) ? 'C' : ' ',
++			(&ring->buf[i] == ring->dirty) ? 'D' : ' ',
+ 			(desc_hw == desc_dma) ? 'H' : ' ',
+ 			desc_dma,
+-			desc->next,
+-			desc->data,
+-			desc->ctrl,
+-			(desc->ctrl & DESC_EMPTY) ? 'E' : '*',
+-			ab->timestamp);
++			ab->desc->next,
++			ab->desc->data,
++			ab->desc->ctrl,
++			(ab->desc->ctrl & DESC_EMPTY) ? 'E' : '*');
+ 	}
+ 
+ 	spin_unlock_irqrestore(&ag->lock, flags);
+@@ -247,14 +240,10 @@ void ag71xx_debugfs_exit(struct ag71xx *ag)
+ 
+ int ag71xx_debugfs_init(struct ag71xx *ag)
+ {
+-	struct device *dev = &ag->pdev->dev;
+-
+-	ag->debug.debugfs_dir = debugfs_create_dir(dev_name(dev),
++	ag->debug.debugfs_dir = debugfs_create_dir(ag->dev->name,
+ 						   ag71xx_debugfs_root);
+-	if (!ag->debug.debugfs_dir) {
+-		dev_err(dev, "unable to create debugfs directory\n");
+-		return -ENOENT;
+-	}
++	if (!ag->debug.debugfs_dir)
++		return -ENOMEM;
+ 
+ 	debugfs_create_file("int_stats", S_IRUGO, ag->debug.debugfs_dir,
+ 			    ag, &ag71xx_fops_int_stats);
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ethtool.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ethtool.c
+index f0e102152f2..4bc6bb02b54 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ethtool.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_ethtool.c
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -18,6 +19,29 @@ static int ag71xx_ethtool_get_settings(struct net_device *dev,
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
+ 	struct phy_device *phydev = ag->phy_dev;
++	ag71xx_sgmii_speed_t speed;
++	ag71xx_sgmii_duplex_t duplex;
++
++	if (ag71xx_sgmii_flag_get()) {
++		cmd->autoneg = AUTONEG_DISABLE;
++		cmd->supported = (SUPPORTED_10baseT_Half   |
++			   SUPPORTED_10baseT_Full   |
++			   SUPPORTED_100baseT_Half  |
++			   SUPPORTED_100baseT_Full  |
++			   SUPPORTED_1000baseT_Full);
++		ag71xx_sgmii_get_link(ag, &speed, &duplex);
++		if (speed == AG71XX_SGMII_SPEED_1000T)
++			cmd->speed = SPEED_1000;
++		else if (speed == AG71XX_SGMII_SPEED_100T)
++			cmd->speed = SPEED_100;
++		else
++			cmd->speed = SPEED_10;
++		if (duplex == AG71XX_SGMII_FULL_DUPLEX)
++			cmd->duplex = DUPLEX_FULL;
++		else
++			cmd->duplex = DUPLEX_HALF;
++		return 0;
++	}
+ 
+ 	if (!phydev)
+ 		return -ENODEV;
+@@ -30,6 +54,33 @@ static int ag71xx_ethtool_set_settings(struct net_device *dev,
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
+ 	struct phy_device *phydev = ag->phy_dev;
++	ag71xx_sgmii_speed_t speed;
++	ag71xx_sgmii_duplex_t duplex;
++
++	if (cmd->autoneg == AUTONEG_DISABLE && ag71xx_sgmii_flag_get()) {
++		if (cmd->speed == SPEED_1000) {
++			if (cmd->duplex == DUPLEX_FULL) {
++				speed = AG71XX_SGMII_SPEED_1000T;
++				duplex = AG71XX_SGMII_FULL_DUPLEX;
++			} else {
++				return -EINVAL;
++			}
++		} else if (cmd->speed == SPEED_100) {
++			if (cmd->duplex == DUPLEX_FULL)
++				duplex = AG71XX_SGMII_FULL_DUPLEX;
++			else
++				duplex = AG71XX_SGMII_HALF_DUPLEX;
++			speed = AG71XX_SGMII_SPEED_100T;
++		} else {
++			if (cmd->duplex == DUPLEX_FULL)
++				duplex = AG71XX_SGMII_FULL_DUPLEX;
++			else
++				duplex = AG71XX_SGMII_HALF_DUPLEX;
++			speed = AG71XX_SGMII_SPEED_10T;
++		}
++		ag71xx_sgmii_set_link(ag, speed, duplex);
++		return 0;
++	}
+ 
+ 	if (!phydev)
+ 		return -ENODEV;
+@@ -71,13 +122,24 @@ static void ag71xx_ethtool_get_ringparam(struct net_device *dev,
+ 	er->rx_mini_max_pending = 0;
+ 	er->rx_jumbo_max_pending = 0;
+ 
+-	er->tx_pending = BIT(ag->tx_ring.order);
+-	er->rx_pending = BIT(ag->rx_ring.order);
++	er->tx_pending = ag->tx_ring.size;
++	er->rx_pending = ag->rx_ring.size;
+ 	er->rx_mini_pending = 0;
+ 	er->rx_jumbo_pending = 0;
++}
+ 
+-	if (ag->tx_ring.desc_split)
+-		er->tx_pending /= AG71XX_TX_RING_DS_PER_PKT;
++/* Return the next largest power of 2. */
++static int ag71xx_next_power_of_2(unsigned int i)
++{
++	i--;
++	i = (i >> 1) | i;
++	i = (i >> 2) | i;
++	i = (i >> 4) | i;
++	i = (i >> 8) | i;
++	i = (i >> 16) | i;
++	i++;
++
++	return i;
+ }
+ 
+ static int ag71xx_ethtool_set_ringparam(struct net_device *dev,
+@@ -86,9 +148,9 @@ static int ag71xx_ethtool_set_ringparam(struct net_device *dev,
+ 	struct ag71xx *ag = netdev_priv(dev);
+ 	unsigned tx_size;
+ 	unsigned rx_size;
+-	int err = 0;
++	int err;
+ 
+-	if (er->rx_mini_pending != 0||
++	if (er->rx_mini_pending != 0 ||
+ 	    er->rx_jumbo_pending != 0 ||
+ 	    er->rx_pending == 0 ||
+ 	    er->tx_pending == 0)
+@@ -96,9 +158,11 @@ static int ag71xx_ethtool_set_ringparam(struct net_device *dev,
+ 
+ 	tx_size = er->tx_pending < AG71XX_TX_RING_SIZE_MAX ?
+ 		  er->tx_pending : AG71XX_TX_RING_SIZE_MAX;
++	tx_size = ag71xx_next_power_of_2(tx_size);
+ 
+ 	rx_size = er->rx_pending < AG71XX_RX_RING_SIZE_MAX ?
+ 		  er->rx_pending : AG71XX_RX_RING_SIZE_MAX;
++	rx_size = ag71xx_next_power_of_2(rx_size);
+ 
+ 	if (netif_running(dev)) {
+ 		err = dev->netdev_ops->ndo_stop(dev);
+@@ -106,11 +170,10 @@ static int ag71xx_ethtool_set_ringparam(struct net_device *dev,
+ 			return err;
+ 	}
+ 
+-	if (ag->tx_ring.desc_split)
+-		tx_size *= AG71XX_TX_RING_DS_PER_PKT;
+-
+-	ag->tx_ring.order = ag71xx_ring_size_order(tx_size);
+-	ag->rx_ring.order = ag71xx_ring_size_order(rx_size);
++	ag->tx_ring.size = tx_size;
++	ag->tx_ring.mask = tx_size - 1;
++	ag->rx_ring.size = rx_size;
++	ag->rx_ring.mask = rx_size - 1;
+ 
+ 	if (netif_running(dev))
+ 		err = dev->netdev_ops->ndo_open(dev);
+@@ -118,14 +181,54 @@ static int ag71xx_ethtool_set_ringparam(struct net_device *dev,
+ 	return err;
+ }
+ 
++static int ag71xx_ethtool_get_regs_len(struct net_device *netdev)
++{
++#define AG71XX_REGS_LEN 23
++	return AG71XX_REGS_LEN * sizeof(u32);
++}
++
++static void ag71xx_ethtool_get_regs(struct net_device *netdev,
++			struct ethtool_regs *regs, void *p)
++{
++	struct ag71xx *ag = netdev_priv(netdev);
++	u32 *regs_buff = p;
++
++	memset(p, 0, AG71XX_REGS_LEN * sizeof(u32));
++
++	regs_buff[0]  = ag71xx_rr(ag, AG71XX_REG_MAC_CFG1);
++	regs_buff[1]  = ag71xx_rr(ag, AG71XX_REG_MAC_CFG2);
++	regs_buff[2]  = ag71xx_rr(ag, AG71XX_REG_MAC_IPG);
++	regs_buff[3]  = ag71xx_rr(ag, AG71XX_REG_MAC_HDX);
++	regs_buff[4]  = ag71xx_rr(ag, AG71XX_REG_MAC_MFL);
++	regs_buff[5]  = 0xFFFFFFFF;
++	regs_buff[6]  = 0xFFFFFFFF;
++	regs_buff[7]  = 0xFFFFFFFF;
++	regs_buff[8]  = ag71xx_rr(ag, AG71XX_REG_MII_CFG);
++	regs_buff[9]  = 0xFFFFFFFF;
++	regs_buff[10] = 0xFFFFFFFF;
++	regs_buff[11] = 0xFFFFFFFF;
++	regs_buff[12] = 0xFFFFFFFF;
++	regs_buff[13] = 0xFFFFFFFF;
++	regs_buff[14] = ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL);
++	regs_buff[15] = ag71xx_rr(ag, AG71XX_REG_MAC_ADDR1);
++	regs_buff[16] = ag71xx_rr(ag, AG71XX_REG_MAC_ADDR2);
++	regs_buff[17] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG0);
++	regs_buff[18] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG1);
++	regs_buff[19] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG2);
++	regs_buff[20] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG3);
++	regs_buff[21] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG4);
++	regs_buff[22] = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5);
++}
++
+ struct ethtool_ops ag71xx_ethtool_ops = {
+ 	.set_settings	= ag71xx_ethtool_set_settings,
+ 	.get_settings	= ag71xx_ethtool_get_settings,
+ 	.get_drvinfo	= ag71xx_ethtool_get_drvinfo,
++	.get_regs_len	= ag71xx_ethtool_get_regs_len,
++	.get_regs	= ag71xx_ethtool_get_regs,
+ 	.get_msglevel	= ag71xx_ethtool_get_msglevel,
+ 	.set_msglevel	= ag71xx_ethtool_set_msglevel,
+ 	.get_ringparam	= ag71xx_ethtool_get_ringparam,
+ 	.set_ringparam	= ag71xx_ethtool_set_ringparam,
+ 	.get_link	= ethtool_op_get_link,
+-	.get_ts_info	= ethtool_op_get_ts_info,
+ };
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_main.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_main.c
+index e9a3d59fa3e..d084b47a052 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_main.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_main.c
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -12,14 +13,17 @@
+  */
+ 
+ #include "ag71xx.h"
++#ifdef CONFIG_OF
++#include <linux/of.h>
++#include <linux/of_platform.h>
++#endif
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
+-static inline void skb_free_frag(void *data)
+-{
+-	put_page(virt_to_head_page(data));
+-}
++#ifndef UNUSED
++#define UNUSED(__x)	(void)(__x)
+ #endif
+ 
++static int ag71xx_gmac_num;
++
+ #define AG71XX_DEFAULT_MSG_ENABLE	\
+ 	(NETIF_MSG_DRV			\
+ 	| NETIF_MSG_PROBE		\
+@@ -31,306 +35,548 @@ static inline void skb_free_frag(void *data)
+ 	| NETIF_MSG_TX_ERR)
+ 
+ static int ag71xx_msg_level = -1;
++static int ag71xx_frame_len_mask = DESC_PKTLEN_M;
++
++#define SGMII_PROCFS_DIR                        "ag71xx_sgmii"
++#define SGMII_FLAG_NAME				"sgmii_en"
++static u8 ag71xx_sgmii_flag;
++static struct proc_dir_entry *ag71xx_sgmii_dir;
++static struct proc_dir_entry *ag71xx_sgmii_flag_file;
++void ag71xx_sgmii_flag_set(u8 flag)
++{
++	if (flag != ag71xx_sgmii_flag) {
++		struct net_device *sgmii_net = NULL;
++		struct ag71xx *ag = NULL;
++
++		sgmii_net = dev_get_by_name(&init_net, "eth1");
++		if (!sgmii_net)
++			return;
++		ag = netdev_priv(sgmii_net);
++		if (!ag)
++			return;
++		if (flag) {
++			/* enable sgmii set */
++			/* map sgmii interface register space*/
++			ag->sgmii_base = ioremap_nocache(AR71XX_MII_BASE,
++					AR71XX_MII_SIZE);
++			/* map pll register space*/
++			ag->pll_base = ioremap_nocache(AR71XX_PLL_BASE,
++					AR71XX_PLL_SIZE);
++		} else {
++			/* disable sgmii set */
++			/* unmap sgmii interface register space*/
++			if (ag->sgmii_base) {
++				iounmap(ag->sgmii_base);
++				ag->sgmii_base = NULL;
++			}
++			/* unmap pll register space*/
++			if (ag->pll_base) {
++				iounmap(ag->pll_base);
++				ag->pll_base = NULL;
++			}
++		}
++		ag71xx_sgmii_flag = flag;
++	}
++}
++
++u8 ag71xx_sgmii_flag_get(void)
++{
++	return ag71xx_sgmii_flag;
++}
+ 
+ module_param_named(msg_level, ag71xx_msg_level, int, 0);
+ MODULE_PARM_DESC(msg_level, "Message level (-1=defaults,0=none,...,16=all)");
+ 
+-#define ETH_SWITCH_HEADER_LEN	2
+-
+-static int ag71xx_tx_packets(struct ag71xx *ag, bool flush);
+-
+-static inline unsigned int ag71xx_max_frame_len(unsigned int mtu)
+-{
+-	return ETH_SWITCH_HEADER_LEN + ETH_HLEN + VLAN_HLEN + mtu + ETH_FCS_LEN;
+-}
++#ifdef CONFIG_AG71XX_SRAM_DESCRIPTORS
++#define MAX_AG71XX_USING_SRAM		2
++#define MAX_AG71XX_SRAM_RINGS		((MAX_AG71XX_USING_SRAM) * 2)
++#define AR8327_REG_PORT0_STATUS		0x7c
++static unsigned long ag71xx_ring_bufs[MAX_AG71XX_SRAM_RINGS] = {
++	0x1d000008UL,
++	0x1d001008UL,
++	0x1d002008UL,
++	0x1d003008UL
++};
++#endif /* CONFIG_AG71XX_SRAM_DESCRIPTORS */
+ 
++#ifdef DEBUG
+ static void ag71xx_dump_dma_regs(struct ag71xx *ag)
+ {
+ 	DBG("%s: dma_tx_ctrl=%08x, dma_tx_desc=%08x, dma_tx_status=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_TX_CTRL),
+-		ag71xx_rr(ag, AG71XX_REG_TX_DESC),
+-		ag71xx_rr(ag, AG71XX_REG_TX_STATUS));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_TX_CTRL),
++	    ag71xx_rr(ag, AG71XX_REG_TX_DESC),
++	    ag71xx_rr(ag, AG71XX_REG_TX_STATUS));
+ 
+ 	DBG("%s: dma_rx_ctrl=%08x, dma_rx_desc=%08x, dma_rx_status=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_RX_CTRL),
+-		ag71xx_rr(ag, AG71XX_REG_RX_DESC),
+-		ag71xx_rr(ag, AG71XX_REG_RX_STATUS));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_RX_CTRL),
++	    ag71xx_rr(ag, AG71XX_REG_RX_DESC),
++	    ag71xx_rr(ag, AG71XX_REG_RX_STATUS));
+ }
+ 
+ static void ag71xx_dump_regs(struct ag71xx *ag)
+ {
+ 	DBG("%s: mac_cfg1=%08x, mac_cfg2=%08x, ipg=%08x, hdx=%08x, mfl=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_MAC_CFG1),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_CFG2),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_IPG),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_HDX),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_MFL));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_MAC_CFG1),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_CFG2),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_IPG),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_HDX),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_MFL));
+ 	DBG("%s: mac_ifctl=%08x, mac_addr1=%08x, mac_addr2=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_ADDR1),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_ADDR2));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_ADDR1),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_ADDR2));
+ 	DBG("%s: fifo_cfg0=%08x, fifo_cfg1=%08x, fifo_cfg2=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG0),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG1),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG2));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG0),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG1),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG2));
+ 	DBG("%s: fifo_cfg3=%08x, fifo_cfg4=%08x, fifo_cfg5=%08x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG3),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG4),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG3),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG4),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5));
+ }
+ 
+ static inline void ag71xx_dump_intr(struct ag71xx *ag, char *label, u32 intr)
+ {
+ 	DBG("%s: %s intr=%08x %s%s%s%s%s%s\n",
+-		ag->dev->name, label, intr,
+-		(intr & AG71XX_INT_TX_PS) ? "TXPS " : "",
+-		(intr & AG71XX_INT_TX_UR) ? "TXUR " : "",
+-		(intr & AG71XX_INT_TX_BE) ? "TXBE " : "",
+-		(intr & AG71XX_INT_RX_PR) ? "RXPR " : "",
+-		(intr & AG71XX_INT_RX_OF) ? "RXOF " : "",
+-		(intr & AG71XX_INT_RX_BE) ? "RXBE " : "");
++	    ag->dev->name, label, intr,
++	    (intr & AG71XX_INT_TX_PS) ? "TXPS " : "",
++	    (intr & AG71XX_INT_TX_UR) ? "TXUR " : "",
++	    (intr & AG71XX_INT_TX_BE) ? "TXBE " : "",
++	    (intr & AG71XX_INT_RX_PR) ? "RXPR " : "",
++	    (intr & AG71XX_INT_RX_OF) ? "RXOF " : "",
++	    (intr & AG71XX_INT_RX_BE) ? "RXBE " : "");
+ }
++#else /* !DEBUG */
++#define ag71xx_dump_dma_regs(__ag)
++#define ag71xx_dump_regs(__ag)
++#define ag71xx_dump_intr(__ag, __label, __intr)
++#endif /* DEBUG */
++
++static int sgmii_procfile_read(struct file *file,
++			       char __user *buf,
++			       size_t size, loff_t *ppos)
++{
++	char lbuf[40];
+ 
+-static void ag71xx_ring_free(struct ag71xx_ring *ring)
++	snprintf(lbuf, sizeof(lbuf), "%d\n", ag71xx_sgmii_flag);
++
++	return simple_read_from_buffer(buf, size, ppos,
++					lbuf, strlen(lbuf));
++}
++
++static int sgmii_procfile_write(struct file *file,
++				const char __user *buf,
++				size_t size, loff_t *ppos)
+ {
+-	int ring_size = BIT(ring->order);
+-	kfree(ring->buf);
++	char lbuf[32];
++	size_t lbuf_size;
++	u32 prv_data;
++
++	lbuf_size = min(size, (sizeof(lbuf) - 1));
++	if (copy_from_user(lbuf, buf, lbuf_size))
++		return -EFAULT;
+ 
+-	if (ring->descs_cpu)
+-		dma_free_coherent(NULL, ring_size * AG71XX_DESC_SIZE,
+-				  ring->descs_cpu, ring->descs_dma);
++	kstrtouint(lbuf, 0, &prv_data);
++	ag71xx_sgmii_flag_set((u8)prv_data);
++
++	return lbuf_size;
+ }
+ 
+-static int ag71xx_ring_alloc(struct ag71xx_ring *ring)
++static const struct file_operations ag71xx_sgmii_proc_fops = {
++	.owner		= THIS_MODULE,
++	.read		= sgmii_procfile_read,
++	.write		= sgmii_procfile_write,
++};
++
++int ag71xx_sgmii_procfs_init(void)
+ {
+-	int ring_size = BIT(ring->order);
+-	int err;
++	int ret = 0;
+ 
+-	ring->descs_cpu = dma_alloc_coherent(NULL, ring_size * AG71XX_DESC_SIZE,
+-					     &ring->descs_dma, GFP_ATOMIC);
+-	if (!ring->descs_cpu) {
+-		err = -ENOMEM;
+-		goto err;
++	ag71xx_sgmii_dir = proc_mkdir(SGMII_PROCFS_DIR, NULL);
++	if (!ag71xx_sgmii_dir) {
++		ret = -ENOMEM;
++		goto err_out;
++	}
++	ag71xx_sgmii_flag_file = proc_create(SGMII_FLAG_NAME, 0644,
++					     ag71xx_sgmii_dir,
++					     &ag71xx_sgmii_proc_fops);
++	if (!ag71xx_sgmii_flag_file) {
++		pr_err("Error: Can not create /proc/%s/%s\n",
++		       SGMII_PROCFS_DIR, SGMII_FLAG_NAME);
++		ret = -ENOMEM;
++		goto file_create_fail;
+ 	}
++	return 0;
++file_create_fail:
++	remove_proc_entry(SGMII_PROCFS_DIR, NULL);
++err_out:
++	return ret;
++}
+ 
++void ag71xx_sgmii_procfs_exit(void)
++{
++	remove_proc_entry(SGMII_FLAG_NAME, ag71xx_sgmii_dir);
++	remove_proc_entry(SGMII_PROCFS_DIR, NULL);
++}
+ 
+-	ring->buf = kzalloc(ring_size * sizeof(*ring->buf), GFP_KERNEL);
+-	if (!ring->buf) {
+-		err = -ENOMEM;
+-		goto err;
++void ag71xx_sgmii_interface_setup(
++	struct ag71xx *ag,
++	ag71xx_sgmii_speed_t speed,
++	ag71xx_sgmii_duplex_t duplex)
++{
++	u32 val1 = 0, val2 = 0, count = 0;
++
++	if (duplex == AG71XX_SGMII_FULL_DUPLEX)
++		val1 |= SGMII_DUPLEX_SET(1);
++	if (speed == AG71XX_SGMII_SPEED_1000T) {
++		val1 |= SGMII_SPEED_SEL1_SET(1);
++		val2 |= SGMII_SPEED_SET(2);
++	} else if (speed == AG71XX_SGMII_SPEED_100T) {
++		val1 |= SGMII_SPEED_SEL0_SET(1);
++		val2 |= SGMII_SPEED_SET(1);
++	}
++	val1 |= SGMII_PHY_RESET_SET(1);
++	ag71xx_sgmii_wr(ag, SGMII_PHY_MGMT_CTRL, val1);
++	udelay(10);
++	val2 |= SGMII_MODE_CTRL_SET(2);
++	val2 |= SGMII_FORCE_SPEED_SET(1);
++	ag71xx_sgmii_wr(ag, SGMII_CONFIG, val2);
++	/*sgmii reset sequence*/
++	ag71xx_sgmii_wr(ag, SGMII_RESET, SGMII_RX_CLK_N);
++	ag71xx_sgmii_wr(ag, SGMII_RESET, SGMII_HW_RX_125M);
++	val1 = SGMII_RX_125M | SGMII_HW_RX_125M;
++	ag71xx_sgmii_wr(ag, SGMII_RESET, val1);
++	val1 = SGMII_RX_125M | SGMII_TX_125M | SGMII_HW_RX_125M;
++	ag71xx_sgmii_wr(ag, SGMII_RESET, val1);
++	val1 = SGMII_RX_125M | SGMII_TX_125M |
++		SGMII_HW_RX_125M | SGMII_RX_CLK_N;
++	ag71xx_sgmii_wr(ag, SGMII_RESET, val1);
++	val1 = SGMII_RX_125M | SGMII_TX_125M | SGMII_HW_RX_125M |
++		SGMII_RX_CLK_N | SGMII_TX_CLK_N;
++	ag71xx_sgmii_wr(ag, SGMII_RESET, val1);
++	val1 = ag71xx_sgmii_rr(ag, SGMII_PHY_MGMT_CTRL);
++	val1 &= ~SGMII_PHY_RESET_SET(1);
++	ag71xx_sgmii_wr(ag, SGMII_PHY_MGMT_CTRL, val1);
++	val1 = ag71xx_sgmii_rr(ag, SGMII_DEBUG);
++	while (!(val1 == 0xf || val1 == 0x10)) {
++		val2 = ag71xx_sgmii_rr(ag, SGMII_PHY_MGMT_CTRL);
++		val2 |= SGMII_PHY_RESET_SET(1);
++		ag71xx_sgmii_wr(ag, SGMII_PHY_MGMT_CTRL, val2);
++		udelay(100);
++		val2 = ag71xx_sgmii_rr(ag, SGMII_PHY_MGMT_CTRL);
++		val2 &= ~SGMII_PHY_RESET_SET(1);
++		ag71xx_sgmii_wr(ag, SGMII_PHY_MGMT_CTRL, val2);
++		if (count++ == SGMII_LINK_MAX_TRY) {
++			pr_info("Max resets limit reached exiting...\n");
++			break;
++		}
++		val1 = (ag71xx_sgmii_rr(ag, SGMII_DEBUG) & 0xff);
+ 	}
++}
+ 
+-	return 0;
++void ag71xx_gmac_set_link(
++	struct ag71xx *ag,
++	ag71xx_sgmii_speed_t speed,
++	ag71xx_sgmii_duplex_t duplex)
++{
++	u32 val;
+ 
+-err:
+-	return err;
++	val = ag71xx_rr(ag, AG71XX_REG_MAC_CFG2);
++	if (duplex == AG71XX_SGMII_FULL_DUPLEX)
++		val |= MAC_CFG2_FDX;
++	else
++		val &= ~MAC_CFG2_FDX;
++	if (speed == AG71XX_SGMII_SPEED_1000T) {
++		val |= MAC_CFG2_IF_1000;
++		val &= ~MAC_CFG2_IF_10_100;
++	} else {
++		val |= MAC_CFG2_IF_10_100;
++		val &= ~MAC_CFG2_IF_1000;
++	}
++	ag71xx_wr(ag, AG71XX_REG_MAC_CFG2, val);
++	val = ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5);
++	if (speed == AG71XX_SGMII_SPEED_1000T)
++		val |= FIFO_CFG5_BM;
++	else if (speed == AG71XX_SGMII_SPEED_100T)
++		val &= ~FIFO_CFG5_BM;
++	else
++		val &= ~FIFO_CFG5_BM;
++
++	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG5, val);
++	val = ag71xx_pll_rr(ag, AG71XX_PLL_SGMII);
++	if  (speed == AG71XX_SGMII_SPEED_1000T)
++		val |= (AG71XX_PLL_GIGE | AG71XX_PLL_GIGE_CLK);
++	else if (speed == AG71XX_SGMII_SPEED_100T)
++		val = AG71XX_PLL_100;
++	else
++		val = AG71XX_PLL_10;
++
++	ag71xx_pll_wr(ag, AG71XX_PLL_SGMII, val);
++	val = ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL);
++	if (speed == AG71XX_SGMII_SPEED_100T)
++		val |= AG71XX_INTF_CTRL_SPEED;
++	else if (speed == AG71XX_SGMII_SPEED_10T)
++		val &= ~AG71XX_INTF_CTRL_SPEED;
+ }
+ 
+-static void ag71xx_ring_tx_clean(struct ag71xx *ag)
++void ag71xx_sgmii_set_link(
++	struct ag71xx *ag,
++	ag71xx_sgmii_speed_t speed,
++	ag71xx_sgmii_duplex_t duplex)
+ {
+-	struct ag71xx_ring *ring = &ag->tx_ring;
+-	struct net_device *dev = ag->dev;
+-	int ring_mask = BIT(ring->order) - 1;
+-	u32 bytes_compl = 0, pkts_compl = 0;
++	ag71xx_sgmii_interface_setup(ag, speed, duplex);
++	ag71xx_gmac_set_link(ag, speed, duplex);
++}
+ 
+-	while (ring->curr != ring->dirty) {
+-		struct ag71xx_desc *desc;
+-		u32 i = ring->dirty & ring_mask;
++void ag71xx_sgmii_get_link(
++	struct ag71xx *ag,
++	ag71xx_sgmii_speed_t *speed,
++	ag71xx_sgmii_duplex_t *duplex)
++{
++	u32 val = 0;
+ 
+-		desc = ag71xx_ring_desc(ring, i);
+-		if (!ag71xx_desc_empty(desc)) {
+-			desc->ctrl = 0;
+-			dev->stats.tx_errors++;
+-		}
++	val = ag71xx_sgmii_rr(ag, SGMII_PHY_MGMT_CTRL);
++	if (val & SGMII_DUPLEX_SET(1))
++		*duplex = AG71XX_SGMII_FULL_DUPLEX;
++	else
++		*duplex = AG71XX_SGMII_HALF_DUPLEX;
++	if (val & SGMII_SPEED_SEL1_SET(1))
++		*speed = AG71XX_SGMII_SPEED_1000T;
++	else if (val & SGMII_SPEED_SEL0_SET(1))
++		*speed = AG71XX_SGMII_SPEED_100T;
++	else
++		*speed = AG71XX_SGMII_SPEED_10T;
++}
+ 
+-		if (ring->buf[i].skb) {
+-			bytes_compl += ring->buf[i].len;
+-			pkts_compl++;
+-			dev_kfree_skb_any(ring->buf[i].skb);
++static void ag71xx_ring_free(struct ag71xx_ring *ring)
++{
++	if (ring->descs_cpu) {
++		if (ring->iomem) {
++			iounmap(ring->iomem);
++		} else {
++			dma_free_coherent(NULL, ring->size * ring->desc_size,
++					  ring->descs_cpu, ring->descs_dma);
+ 		}
+-		ring->buf[i].skb = NULL;
+-		ring->dirty++;
+ 	}
+-
+-	/* flush descriptors */
+-	wmb();
+-
+-	netdev_completed_queue(dev, pkts_compl, bytes_compl);
+ }
+ 
+-static void ag71xx_ring_tx_init(struct ag71xx *ag)
++static int ag71xx_ring_alloc(struct ag71xx *ag, struct ag71xx_ring *ring,
++			     unsigned int id)
+ {
+-	struct ag71xx_ring *ring = &ag->tx_ring;
+-	int ring_size = BIT(ring->order);
+-	int ring_mask = ring_size - 1;
+ 	int i;
+ 
+-	for (i = 0; i < ring_size; i++) {
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
++	ring->desc_size = sizeof(struct ag71xx_desc);
++#ifdef CONFIG_AG71XX_DESC_ALIGN_CACHE_LINE
++	if (ring->desc_size % cache_line_size()) {
++		DBG("ag71xx: ring %p, desc size %u rounded to %u\n",
++		    ring, ring->desc_size,
++		    roundup(ring->desc_size, cache_line_size()));
++		ring->desc_size = roundup(ring->desc_size, cache_line_size());
++	}
++#endif
+ 
+-		desc->next = (u32) (ring->descs_dma +
+-			AG71XX_DESC_SIZE * ((i + 1) & ring_mask));
++#ifdef CONFIG_AG71XX_SRAM_DESCRIPTORS
++	if (id < MAX_AG71XX_USING_SRAM) {
++		DBG("ag71xx: descriptors in SRAM\n");
++		ring->iomem = ioremap_nocache(ag71xx_ring_bufs[id], 0x1000);
++		if (!ring->iomem)
++			return -ENOMEM;
+ 
+-		desc->ctrl = DESC_EMPTY;
+-		ring->buf[i].skb = NULL;
++		ring->descs_cpu = (u8 *)ring->iomem;
++		ring->descs_dma = ((dma_addr_t)(ring->iomem) & 0x1fffffff);
++		goto descs_allocated;
++	}
++#else
++	UNUSED(id);
++#endif /* CONFIG_AG71XX_SRAM_DESCRIPTORS */
++	ring->iomem = NULL;
++	ring->descs_cpu = dma_alloc_coherent(NULL,
++					     ring->size * ring->desc_size,
++					     &ring->descs_dma,
++					     GFP_ATOMIC);
++	if (!ring->descs_cpu)
++		return -ENOMEM;
++
++#ifdef CONFIG_AG71XX_SRAM_DESCRIPTORS
++descs_allocated:
++#endif /* CONFIG_AG71XX_SRAM_DESCRIPTORS */
++	/* The even numbered ring at the beginning, odd gets the end */
++	if ((id & 0x1) == 0) {
++		ring->buf = &ag->ring_bufs[0];
++	} else {
++		/* This looks weird but tries very hard to avoid aliasing
++		 * problems in the D-cache.
++		 */
++		unsigned int rings_total;
++
++		rings_total = AG71XX_TX_RING_SIZE_MAX + AG71XX_RX_RING_SIZE_MAX;
++		ring->buf = &ag->ring_bufs[rings_total - ring->size];
+ 	}
+ 
+-	/* flush descriptors */
+-	wmb();
++	for (i = 0; i < ring->size; i++) {
++		int idx = i * ring->desc_size;
+ 
+-	ring->curr = 0;
+-	ring->dirty = 0;
+-	netdev_reset_queue(ag->dev);
++		ring->buf[i].desc = (struct ag71xx_desc *)&ring->descs_cpu[idx];
++		DBG("ag71xx: ring %p, desc %d at %p\n",
++		    ring, i, ring->buf[i].desc);
++	}
++
++	return 0;
+ }
+ 
+-static void ag71xx_ring_rx_clean(struct ag71xx *ag)
++static void ag71xx_ring_tx_clean(struct ag71xx *ag)
+ {
+-	struct ag71xx_ring *ring = &ag->rx_ring;
+-	int ring_size = BIT(ring->order);
+-	int i;
++	struct ag71xx_ring *ring = &ag->tx_ring;
++	struct net_device *dev = ag->dev;
++	unsigned int bytes_compl = 0;
++	unsigned int pkts_compl = 0;
++	struct ag71xx_buf *dirty = ring->dirty;
++	unsigned int used = ring->used;
+ 
+ 	if (!ring->buf)
+ 		return;
+ 
+-	for (i = 0; i < ring_size; i++)
+-		if (ring->buf[i].rx_buf) {
+-			dma_unmap_single(&ag->dev->dev, ring->buf[i].dma_addr,
+-					 ag->rx_buf_size, DMA_FROM_DEVICE);
+-			skb_free_frag(ring->buf[i].rx_buf);
++	while (used) {
++		struct ag71xx_desc *desc = dirty->desc;
++		struct sk_buff *skb;
++
++		/* If the descriptor is not marked as empty then mark it as
++		 * empty and record a TX error.
++		 */
++		if (!(desc->ctrl & DESC_EMPTY)) {
++			desc->ctrl = DESC_EMPTY;
++			dev->stats.tx_errors++;
+ 		}
+-}
+ 
+-static int ag71xx_buffer_offset(struct ag71xx *ag)
+-{
+-	int offset = NET_SKB_PAD;
++		skb = dirty->skb;
++		dirty->skb = NULL;
++		dirty = dirty->next;
+ 
+-	/*
+-	 * On AR71xx/AR91xx packets must be 4-byte aligned.
+-	 *
+-	 * When using builtin AR8216 support, hardware adds a 2-byte header,
+-	 * so we don't need any extra alignment in that case.
+-	 */
+-	if (!ag71xx_get_pdata(ag)->is_ar724x || ag71xx_has_ar8216(ag))
+-		return offset;
++		bytes_compl += skb->len;
++		pkts_compl++;
++		dev_kfree_skb(skb);
+ 
+-	return offset + NET_IP_ALIGN;
+-}
++		used--;
++	}
+ 
+-static int ag71xx_buffer_size(struct ag71xx *ag)
+-{
+-	return ag->rx_buf_size +
+-	       SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
++	ring->dirty = dirty;
++	ring->used = used;
++
++	netdev_completed_queue(dev, pkts_compl, bytes_compl);
+ }
+ 
+-static bool ag71xx_fill_rx_buf(struct ag71xx *ag, struct ag71xx_buf *buf,
+-			       int offset,
+-			       void *(*alloc)(unsigned int size))
++static void ag71xx_ring_tx_init(struct ag71xx *ag)
+ {
+-	struct ag71xx_ring *ring = &ag->rx_ring;
+-	struct ag71xx_desc *desc = ag71xx_ring_desc(ring, buf - &ring->buf[0]);
+-	void *data;
++	struct ag71xx_ring *ring = &ag->tx_ring;
++	unsigned int size = ring->size;
++	int i, next;
+ 
+-	data = alloc(ag71xx_buffer_size(ag));
+-	if (!data)
+-		return false;
++	for (i = 0; i < size; i++) {
++		struct ag71xx_buf *buf = &ring->buf[i];
++		struct ag71xx_desc *desc = buf->desc;
++
++		next = (i >= size - 1) ? 0 : (i + 1);
++		desc->next = (u32)(ring->descs_dma +
++				   ring->desc_size * next);
+ 
+-	buf->rx_buf = data;
+-	buf->dma_addr = dma_map_single(&ag->dev->dev, data, ag->rx_buf_size,
+-				       DMA_FROM_DEVICE);
+-	desc->data = (u32) buf->dma_addr + offset;
+-	return true;
++		desc->ctrl = DESC_EMPTY;
++		buf->skb = NULL;
++		buf->next = &ring->buf[next];
++	}
++
++	ring->curr = ring->buf;
++	ring->dirty = ring->buf;
++	ring->used = 0;
++	netdev_reset_queue(ag->dev);
+ }
+ 
+-static int ag71xx_ring_rx_init(struct ag71xx *ag)
++static void ag71xx_ring_rx_clean(struct ag71xx *ag)
+ {
+ 	struct ag71xx_ring *ring = &ag->rx_ring;
+-	int ring_size = BIT(ring->order);
+-	int ring_mask = BIT(ring->order) - 1;
+-	unsigned int i;
+-	int ret;
+-	int offset = ag71xx_buffer_offset(ag);
+-
+-	ret = 0;
+-	for (i = 0; i < ring_size; i++) {
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
+-
+-		desc->next = (u32) (ring->descs_dma +
+-			AG71XX_DESC_SIZE * ((i + 1) & ring_mask));
++	struct net_device *dev = ag->dev;
++	int i;
+ 
+-		DBG("ag71xx: RX desc at %p, next is %08x\n",
+-			desc, desc->next);
+-	}
++	if (!ring->buf)
++		return;
+ 
+-	for (i = 0; i < ring_size; i++) {
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
++	for (i = 0; i < ring->size; i++) {
++		struct ag71xx_buf *buf = &ring->buf[i];
++		struct sk_buff *skb = buf->skb;
+ 
+-		if (!ag71xx_fill_rx_buf(ag, &ring->buf[i], offset,
+-					netdev_alloc_frag)) {
+-			ret = -ENOMEM;
+-			break;
++		if (skb) {
++			dma_unmap_single(&dev->dev, buf->dma_addr,
++					 ag->rx_buf_size, DMA_FROM_DEVICE);
++			dev_kfree_skb(skb);
++			buf->skb = NULL;
+ 		}
+-
+-		desc->ctrl = DESC_EMPTY;
+ 	}
+-
+-	/* flush descriptors */
+-	wmb();
+-
+-	ring->curr = 0;
+-	ring->dirty = 0;
+-
+-	return ret;
+ }
+ 
+-static int ag71xx_ring_rx_refill(struct ag71xx *ag)
++static int ag71xx_ring_rx_init(struct ag71xx *ag)
+ {
+ 	struct ag71xx_ring *ring = &ag->rx_ring;
+-	int ring_mask = BIT(ring->order) - 1;
+-	unsigned int count;
+-	int offset = ag71xx_buffer_offset(ag);
++	struct net_device *dev = ag->dev;
++	unsigned int size = ring->size;
++	unsigned int rx_buf_size = ag->rx_buf_size;
++	unsigned int rx_buf_offset = ag->rx_buf_offset;
++	unsigned int i, next;
+ 
+-	count = 0;
+-	for (; ring->curr - ring->dirty > 0; ring->dirty++) {
+-		struct ag71xx_desc *desc;
+-		unsigned int i;
++	for (i = 0; i < size; i++) {
++		struct ag71xx_buf *buf = &ring->buf[i];
++		struct ag71xx_desc *desc = buf->desc;
++		struct sk_buff *skb;
+ 
+-		i = ring->dirty & ring_mask;
+-		desc = ag71xx_ring_desc(ring, i);
++		next = (i >= size - 1) ? 0 : (i + 1);
++		desc->next = (u32)(ring->descs_dma +
++				   ring->desc_size * next);
+ 
+-		if (!ring->buf[i].rx_buf &&
+-		    !ag71xx_fill_rx_buf(ag, &ring->buf[i], offset,
+-					napi_alloc_frag))
+-			break;
++		skb = dev_alloc_skb(rx_buf_size + rx_buf_offset);
++		if (unlikely(!skb))
++			return -ENOMEM;
+ 
++		skb_reserve(skb, rx_buf_offset);
++
++		buf->skb = skb;
++		buf->next = &ring->buf[next];
++		buf->dma_addr = dma_map_single(&dev->dev, skb->data,
++					       rx_buf_size, DMA_FROM_DEVICE);
++
++		desc->data = (u32)buf->dma_addr;
+ 		desc->ctrl = DESC_EMPTY;
+-		count++;
+ 	}
+ 
+-	/* flush descriptors */
+-	wmb();
++	ring->curr = ring->buf;
++	ring->dirty = ring->buf;
++	ring->used = size;
+ 
+-	DBG("%s: %u rx descriptors refilled\n", ag->dev->name, count);
+-
+-	return count;
++	return 0;
+ }
+ 
+ static int ag71xx_rings_init(struct ag71xx *ag)
+ {
++	unsigned int rings_total;
+ 	int ret;
+ 
+-	ret = ag71xx_ring_alloc(&ag->tx_ring);
++	rings_total = AG71XX_TX_RING_SIZE_MAX + AG71XX_RX_RING_SIZE_MAX;
++	ag->ring_bufs = kzalloc((rings_total * sizeof(struct ag71xx_buf)),
++				GFP_KERNEL);
++
++	if (!ag->ring_bufs)
++		return -ENOMEM;
++
++	ret = ag71xx_ring_alloc(ag, &ag->tx_ring, (ag->gmac_num * 2));
+ 	if (ret)
+ 		return ret;
+ 
+ 	ag71xx_ring_tx_init(ag);
+ 
+-	ret = ag71xx_ring_alloc(&ag->rx_ring);
++	ret = ag71xx_ring_alloc(ag, &ag->rx_ring, (ag->gmac_num * 2) + 1);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -346,6 +592,8 @@ static void ag71xx_rings_cleanup(struct ag71xx *ag)
+ 	ag71xx_ring_tx_clean(ag);
+ 	netdev_reset_queue(ag->dev);
+ 	ag71xx_ring_free(&ag->tx_ring);
++
++	kfree(ag->ring_bufs);
+ }
+ 
+ static unsigned char *ag71xx_speed_str(struct ag71xx *ag)
+@@ -366,12 +614,12 @@ static void ag71xx_hw_set_macaddr(struct ag71xx *ag, unsigned char *mac)
+ {
+ 	u32 t;
+ 
+-	t = (((u32) mac[5]) << 24) | (((u32) mac[4]) << 16)
+-	  | (((u32) mac[3]) << 8) | ((u32) mac[2]);
++	t = (((u32)mac[5]) << 24) | (((u32)mac[4]) << 16)
++	    | (((u32)mac[3]) << 8) | ((u32)mac[2]);
+ 
+ 	ag71xx_wr(ag, AG71XX_REG_MAC_ADDR1, t);
+ 
+-	t = (((u32) mac[1]) << 24) | (((u32) mac[0]) << 16);
++	t = (((u32)mac[1]) << 24) | (((u32)mac[0]) << 16);
+ 	ag71xx_wr(ag, AG71XX_REG_MAC_ADDR2, t);
+ }
+ 
+@@ -386,8 +634,7 @@ static void ag71xx_dma_reset(struct ag71xx *ag)
+ 	ag71xx_wr(ag, AG71XX_REG_RX_CTRL, 0);
+ 	ag71xx_wr(ag, AG71XX_REG_TX_CTRL, 0);
+ 
+-	/*
+-	 * give the hardware some time to really stop all rx/tx activity
++	/* give the hardware some time to really stop all rx/tx activity
+ 	 * clearing the descriptors too early causes random memory corruption
+ 	 */
+ 	mdelay(1);
+@@ -424,7 +671,8 @@ static void ag71xx_dma_reset(struct ag71xx *ag)
+ }
+ 
+ #define MAC_CFG1_INIT	(MAC_CFG1_RXE | MAC_CFG1_TXE | \
+-			 MAC_CFG1_SRX | MAC_CFG1_STX)
++			 MAC_CFG1_SRX | MAC_CFG1_STX | \
++			 MAC_CFG1_TFC | MAC_CFG1_RFC)
+ 
+ #define FIFO_CFG0_INIT	(FIFO_CFG0_ALL << FIFO_CFG0_ENABLE_SHIFT)
+ 
+@@ -445,6 +693,7 @@ static void ag71xx_dma_reset(struct ag71xx *ag)
+ static void ag71xx_hw_stop(struct ag71xx *ag)
+ {
+ 	/* disable all interrupts and stop the rx/tx engine */
++	ag71xx_wr(ag, AG71XX_REG_MAC_CFG1, 0x0);
+ 	ag71xx_wr(ag, AG71XX_REG_INT_ENABLE, 0);
+ 	ag71xx_wr(ag, AG71XX_REG_RX_CTRL, 0);
+ 	ag71xx_wr(ag, AG71XX_REG_TX_CTRL, 0);
+@@ -453,18 +702,18 @@ static void ag71xx_hw_stop(struct ag71xx *ag)
+ static void ag71xx_hw_setup(struct ag71xx *ag)
+ {
+ 	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+-	u32 init = MAC_CFG1_INIT;
+ 
+ 	/* setup MAC configuration registers */
+-	if (pdata->use_flow_control)
+-		init |= MAC_CFG1_TFC | MAC_CFG1_RFC;
+-	ag71xx_wr(ag, AG71XX_REG_MAC_CFG1, init);
++	ag71xx_wr(ag, AG71XX_REG_MAC_CFG1, MAC_CFG1_INIT);
+ 
+ 	ag71xx_sb(ag, AG71XX_REG_MAC_CFG2,
+ 		  MAC_CFG2_PAD_CRC_EN | MAC_CFG2_LEN_CHECK);
+ 
+ 	/* setup max frame length to zero */
+-	ag71xx_wr(ag, AG71XX_REG_MAC_MFL, 0);
++	if (ag->dev->mtu < AG71XX_TX_MTU_LEN)
++		ag71xx_wr(ag, AG71XX_REG_MAC_MFL, AG71XX_TX_MTU_LEN);
++	else
++		ag71xx_wr(ag, AG71XX_REG_MAC_MFL, ag->dev->mtu);
+ 
+ 	/* setup FIFO configuration registers */
+ 	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG0, FIFO_CFG0_INIT);
+@@ -477,6 +726,14 @@ static void ag71xx_hw_setup(struct ag71xx *ag)
+ 	}
+ 	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG4, FIFO_CFG4_INIT);
+ 	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG5, FIFO_CFG5_INIT);
++
++	if (ag->gmac_num == 0 && pdata->is_qca955x) {
++		u32 reg_val;
++
++		reg_val = ag71xx_rr_fast(ag->mac_base + AG71XX_REG_IG_ACL);
++		reg_val |= AG71XX_IG_ACL_FRA_DISABLE;
++		ag71xx_wr_fast(ag->mac_base + AG71XX_REG_IG_ACL, reg_val);
++	}
+ }
+ 
+ static void ag71xx_hw_init(struct ag71xx *ag)
+@@ -493,18 +750,18 @@ static void ag71xx_hw_init(struct ag71xx *ag)
+ 		reset_mask &= ~(AR71XX_RESET_GE0_PHY | AR71XX_RESET_GE1_PHY);
+ 
+ 		ath79_device_reset_set(reset_phy);
+-		msleep(50);
++		mdelay(50);
+ 		ath79_device_reset_clear(reset_phy);
+-		msleep(200);
++		mdelay(200);
+ 	}
+ 
+ 	ag71xx_sb(ag, AG71XX_REG_MAC_CFG1, MAC_CFG1_SR);
+ 	udelay(20);
+ 
+ 	ath79_device_reset_set(reset_mask);
+-	msleep(100);
++	mdelay(100);
+ 	ath79_device_reset_clear(reset_mask);
+-	msleep(200);
++	mdelay(200);
+ 
+ 	ag71xx_hw_setup(ag);
+ 
+@@ -516,18 +773,14 @@ static void ag71xx_fast_reset(struct ag71xx *ag)
+ 	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 	struct net_device *dev = ag->dev;
+ 	u32 reset_mask = pdata->reset_bit;
+-	u32 rx_ds;
++	u32 rx_ds, tx_ds;
+ 	u32 mii_reg;
+ 
+ 	reset_mask &= AR71XX_RESET_GE0_MAC | AR71XX_RESET_GE1_MAC;
+ 
+-	ag71xx_hw_stop(ag);
+-	wmb();
+-
+ 	mii_reg = ag71xx_rr(ag, AG71XX_REG_MII_CFG);
+ 	rx_ds = ag71xx_rr(ag, AG71XX_REG_RX_DESC);
+-
+-	ag71xx_tx_packets(ag, true);
++	tx_ds = ag71xx_rr(ag, AG71XX_REG_TX_DESC);
+ 
+ 	ath79_device_reset_set(reset_mask);
+ 	udelay(10);
+@@ -536,16 +789,9 @@ static void ag71xx_fast_reset(struct ag71xx *ag)
+ 
+ 	ag71xx_dma_reset(ag);
+ 	ag71xx_hw_setup(ag);
+-	ag->tx_ring.curr = 0;
+-	ag->tx_ring.dirty = 0;
+-	netdev_reset_queue(ag->dev);
+-
+-	/* setup max frame length */
+-	ag71xx_wr(ag, AG71XX_REG_MAC_MFL,
+-		  ag71xx_max_frame_len(ag->dev->mtu));
+ 
+ 	ag71xx_wr(ag, AG71XX_REG_RX_DESC, rx_ds);
+-	ag71xx_wr(ag, AG71XX_REG_TX_DESC, ag->tx_ring.descs_dma);
++	ag71xx_wr(ag, AG71XX_REG_TX_DESC, tx_ds);
+ 	ag71xx_wr(ag, AG71XX_REG_MII_CFG, mii_reg);
+ 
+ 	ag71xx_hw_set_macaddr(ag, dev->dev_addr);
+@@ -559,19 +805,57 @@ static void ag71xx_hw_start(struct ag71xx *ag)
+ 	/* enable interrupts */
+ 	ag71xx_wr(ag, AG71XX_REG_INT_ENABLE, AG71XX_INT_INIT);
+ 
+-	netif_wake_queue(ag->dev);
++	ag71xx_wr(ag, AG71XX_REG_MAC_CFG1, MAC_CFG1_INIT);
++}
++
++#ifdef CONFIG_OF
++static void ag71xx_set_speed(struct ag71xx *ag)
++{
++	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
++	void __iomem *base;
++	u32 pll_val;
++	u32 reg = 0;
++
++	switch (ag->speed) {
++	case SPEED_10:
++		pll_val = pdata->pll_10;
++		break;
++	case SPEED_100:
++		pll_val = pdata->pll_100;
++		break;
++	case SPEED_1000:
++		pll_val = pdata->pll_1000;
++		break;
++	default:
++		BUG();
++	}
++
++	if (pll_val == 0)
++		return;
++
++	if (pdata->phy_if_mode == PHY_INTERFACE_MODE_RGMII ||
++		pdata->phy_if_mode == PHY_INTERFACE_MODE_MII) {
++		if (pdata->is_qca955x)
++			reg = QCA955X_PLL_ETH_XMII_CONTROL_REG;
++		else
++			reg = AR934X_PLL_ETH_XMII_CONTROL_REG;
++	} else if (pdata->phy_if_mode == PHY_INTERFACE_MODE_SGMII)
++		reg = QCA955X_PLL_ETH_SGMII_CONTROL_REG;
++
++	base = ioremap_nocache(AR71XX_PLL_BASE, AR71XX_PLL_SIZE);
++	__raw_writel(pll_val, base + reg);
++	iounmap(base);
+ }
++#endif
+ 
+-static void
+-__ag71xx_link_adjust(struct ag71xx *ag, bool update)
++void ag71xx_link_adjust(struct ag71xx *ag)
+ {
+ 	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 	u32 cfg2;
+ 	u32 ifctl;
+ 	u32 fifo5;
+-	u32 fifo3;
+ 
+-	if (!ag->link && update) {
++	if (!ag->link) {
+ 		ag71xx_hw_stop(ag);
+ 		netif_carrier_off(ag->dev);
+ 		if (netif_msg_link(ag))
+@@ -610,177 +894,126 @@ __ag71xx_link_adjust(struct ag71xx *ag, bool update)
+ 	}
+ 
+ 	if (pdata->is_ar91xx)
+-		fifo3 = 0x00780fff;
++		ag71xx_wr(ag, AG71XX_REG_FIFO_CFG3, 0x00780fff);
+ 	else if (pdata->is_ar724x)
+-		fifo3 = pdata->fifo_cfg3;
++		ag71xx_wr(ag, AG71XX_REG_FIFO_CFG3, pdata->fifo_cfg3);
+ 	else
+-		fifo3 = 0x008001ff;
+-
+-	if (ag->tx_ring.desc_split) {
+-		fifo3 &= 0xffff;
+-		fifo3 |= ((2048 - ag->tx_ring.desc_split) / 4) << 16;
++		ag71xx_wr(ag, AG71XX_REG_FIFO_CFG3, 0x008001ff);
++
++	if (ag->gmac_num == 0 && !ag->duplex) {
++		ag71xx_wr(ag, AG71XX_REG_FIFO_CFG3, AG71XX_CFG_3_HD_VAL);
++		ag71xx_wr(ag, AG71XX_REG_FIFO_THRESH,
++			  AG71XX_FIFO_TH_HD_HALF_VAL);
++	} else if (ag->gmac_num == 0 && ag->duplex) {
++		ag71xx_wr(ag, AG71XX_REG_FIFO_THRESH,
++			  AG71XX_FIFO_TH_HD_FULL_VAL);
+ 	}
+-
+-	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG3, fifo3);
+-
+-	if (update && pdata->set_speed)
++#ifndef CONFIG_AG71XX_FULLOFFLOAD_TARGET
++#ifdef CONFIG_OF
++	ag71xx_set_speed(ag);
++#else
++	if (pdata->set_speed)
+ 		pdata->set_speed(ag->speed);
+-
++#endif
++#endif
+ 	ag71xx_wr(ag, AG71XX_REG_MAC_CFG2, cfg2);
+ 	ag71xx_wr(ag, AG71XX_REG_FIFO_CFG5, fifo5);
+ 	ag71xx_wr(ag, AG71XX_REG_MAC_IFCTL, ifctl);
+-	ag71xx_hw_start(ag);
+ 
++	ag71xx_hw_start(ag);
+ 	netif_carrier_on(ag->dev);
+-	if (update && netif_msg_link(ag))
++	if (netif_msg_link(ag))
+ 		pr_info("%s: link up (%sMbps/%s duplex)\n",
+ 			ag->dev->name,
+ 			ag71xx_speed_str(ag),
+-			(DUPLEX_FULL == ag->duplex) ? "Full" : "Half");
++			(ag->duplex == DUPLEX_FULL) ? "Full" : "Half");
+ 
+ 	DBG("%s: fifo_cfg0=%#x, fifo_cfg1=%#x, fifo_cfg2=%#x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG0),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG1),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG2));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG0),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG1),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG2));
+ 
+ 	DBG("%s: fifo_cfg3=%#x, fifo_cfg4=%#x, fifo_cfg5=%#x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG3),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG4),
+-		ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5));
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG3),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG4),
++	    ag71xx_rr(ag, AG71XX_REG_FIFO_CFG5));
+ 
+ 	DBG("%s: mac_cfg2=%#x, mac_ifctl=%#x\n",
+-		ag->dev->name,
+-		ag71xx_rr(ag, AG71XX_REG_MAC_CFG2),
+-		ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL));
+-}
+-
+-void ag71xx_link_adjust(struct ag71xx *ag)
+-{
+-	__ag71xx_link_adjust(ag, true);
++	    ag->dev->name,
++	    ag71xx_rr(ag, AG71XX_REG_MAC_CFG2),
++	    ag71xx_rr(ag, AG71XX_REG_MAC_IFCTL));
+ }
+ 
+-static int ag71xx_hw_enable(struct ag71xx *ag)
++static int ag71xx_open(struct net_device *dev)
+ {
++	struct ag71xx *ag = netdev_priv(dev);
+ 	int ret;
+ 
++	/* Compute the RX buffer size. */
++	if (dev->mtu > AG71XX_TX_MTU_LEN)
++		ag->rx_buf_size = dev->mtu + ETH_HLEN + ETH_FCS_LEN +
++				VLAN_HLEN + NET_SKB_PAD + NET_IP_ALIGN;
++	else
++		ag->rx_buf_size = AG71XX_RX_BUF_SIZE;
++
++	/* Compute the RX buffer offset.  On AR71xx/AR91xx packets must be
++	 * 4-byte aligned.
++	 *
++	 * When using builtin AR8216 support, hardware adds a 2-byte header,
++	 * so we don't need any extra alignment in that case.
++	 */
++	if (!ag71xx_get_pdata(ag)->is_ar724x || ag71xx_has_ar8216(ag))
++		ag->rx_buf_offset = AG71XX_HACK_WIFI_HEADROOM;
++	else
++		ag->rx_buf_offset = AG71XX_HACK_WIFI_HEADROOM + NET_IP_ALIGN;
++
+ 	ret = ag71xx_rings_init(ag);
+-	if (ret)
++	if (ret) {
++		ag71xx_rings_cleanup(ag);
+ 		return ret;
++	}
+ 
+ 	napi_enable(&ag->napi);
+-	ag71xx_wr(ag, AG71XX_REG_TX_DESC, ag->tx_ring.descs_dma);
+-	ag71xx_wr(ag, AG71XX_REG_RX_DESC, ag->rx_ring.descs_dma);
+-	netif_start_queue(ag->dev);
+-
+-	return 0;
+-}
+-
+-static void ag71xx_hw_disable(struct ag71xx *ag)
+-{
+-	unsigned long flags;
+-
+-	spin_lock_irqsave(&ag->lock, flags);
+-
+-	netif_stop_queue(ag->dev);
+-
+-	ag71xx_hw_stop(ag);
+-	ag71xx_dma_reset(ag);
+-
+-	napi_disable(&ag->napi);
+-	del_timer_sync(&ag->oom_timer);
+-
+-	spin_unlock_irqrestore(&ag->lock, flags);
+-
+-	ag71xx_rings_cleanup(ag);
+-}
+-
+-static int ag71xx_open(struct net_device *dev)
+-{
+-	struct ag71xx *ag = netdev_priv(dev);
+-	unsigned int max_frame_len;
+-	int ret;
+ 
+ 	netif_carrier_off(dev);
+-	max_frame_len = ag71xx_max_frame_len(dev->mtu);
+-	ag->rx_buf_size = SKB_DATA_ALIGN(max_frame_len + NET_SKB_PAD + NET_IP_ALIGN);
++	ag71xx_phy_start(ag);
+ 
+-	/* setup max frame length */
+-	ag71xx_wr(ag, AG71XX_REG_MAC_MFL, max_frame_len);
+-	ag71xx_hw_set_macaddr(ag, dev->dev_addr);
++	ag71xx_wr(ag, AG71XX_REG_TX_DESC, ag->tx_ring.descs_dma);
++	ag71xx_wr(ag, AG71XX_REG_RX_DESC, ag->rx_ring.descs_dma);
+ 
+-	ret = ag71xx_hw_enable(ag);
+-	if (ret)
+-		goto err;
++	ag71xx_hw_set_macaddr(ag, dev->dev_addr);
+ 
+-	ag71xx_phy_start(ag);
++	netif_start_queue(dev);
++	ag->tx_stopped = false;
+ 
+ 	return 0;
+-
+-err:
+-	ag71xx_rings_cleanup(ag);
+-	return ret;
+ }
+ 
+ static int ag71xx_stop(struct net_device *dev)
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
++	unsigned long flags;
+ 
+ 	netif_carrier_off(dev);
+ 	ag71xx_phy_stop(ag);
+-	ag71xx_hw_disable(ag);
+-
+-	return 0;
+-}
+-
+-static int ag71xx_fill_dma_desc(struct ag71xx_ring *ring, u32 addr, int len)
+-{
+-	int i;
+-	struct ag71xx_desc *desc;
+-	int ring_mask = BIT(ring->order) - 1;
+-	int ndesc = 0;
+-	int split = ring->desc_split;
+-
+-	if (!split)
+-		split = len;
+-
+-	while (len > 0) {
+-		unsigned int cur_len = len;
+ 
+-		i = (ring->curr + ndesc) & ring_mask;
+-		desc = ag71xx_ring_desc(ring, i);
+-
+-		if (!ag71xx_desc_empty(desc))
+-			return -1;
++	spin_lock_irqsave(&ag->lock, flags);
+ 
+-		if (cur_len > split) {
+-			cur_len = split;
++	ag->tx_stopped = true;
++	netif_stop_queue(dev);
+ 
+-			/*
+-			 * TX will hang if DMA transfers <= 4 bytes,
+-			 * make sure next segment is more than 4 bytes long.
+-			 */
+-			if (len <= split + 4)
+-				cur_len -= 4;
+-		}
+-
+-		desc->data = addr;
+-		addr += cur_len;
+-		len -= cur_len;
++	ag71xx_hw_stop(ag);
++	ag71xx_dma_reset(ag);
+ 
+-		if (len > 0)
+-			cur_len |= DESC_MORE;
++	napi_disable(&ag->napi);
+ 
+-		/* prevent early tx attempt of this descriptor */
+-		if (!ndesc)
+-			cur_len |= DESC_EMPTY;
++	spin_unlock_irqrestore(&ag->lock, flags);
+ 
+-		desc->ctrl = cur_len;
+-		ndesc++;
+-	}
++	ag71xx_rings_cleanup(ag);
+ 
+-	return ndesc;
++	return 0;
+ }
+ 
+ static netdev_tx_t ag71xx_hard_start_xmit(struct sk_buff *skb,
+@@ -788,65 +1021,69 @@ static netdev_tx_t ag71xx_hard_start_xmit(struct sk_buff *skb,
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
+ 	struct ag71xx_ring *ring = &ag->tx_ring;
+-	int ring_mask = BIT(ring->order) - 1;
+-	int ring_size = BIT(ring->order);
+-	struct ag71xx_desc *desc;
++	struct ag71xx_buf *curr = ring->curr;
++	struct ag71xx_desc *desc = curr->desc;
++	unsigned int used = ring->used;
++	unsigned int size = ring->size;
++	unsigned int len;
+ 	dma_addr_t dma_addr;
+-	int i, n, ring_min;
+ 
+-	if (ag71xx_has_ar8216(ag))
+-		ag71xx_add_ar8216_header(ag, skb);
+-
+-	if (skb->len <= 4) {
+-		DBG("%s: packet len is too small\n", ag->dev->name);
++	/* We shouldn't ever see our ring fully used and
++	 *  reach here but just in case!
++	 */
++	if (unlikely(used == size)) {
++		DBG("%s: tx queue full\n", dev->name);
++		ag->tx_stopped = true;
++		netif_stop_queue(dev);
+ 		goto err_drop;
+ 	}
+ 
+-	dma_addr = dma_map_single(&dev->dev, skb->data, skb->len,
+-				  DMA_TO_DEVICE);
++	if (unlikely(ag71xx_has_ar8216(ag)))
++		ag71xx_add_ar8216_header(ag, skb);
+ 
+-	i = ring->curr & ring_mask;
+-	desc = ag71xx_ring_desc(ring, i);
++	dma_cache_sync(NULL, skb->data, skb->len, DMA_TO_DEVICE);
+ 
+-	/* setup descriptor fields */
+-	n = ag71xx_fill_dma_desc(ring, (u32) dma_addr, skb->len & ag->desc_pktlen_mask);
+-	if (n < 0)
+-		goto err_drop_unmap;
++	len = skb->len;
++	if (unlikely(len <= 0)) {
++		DBG("%s: packet len is too small\n", dev->name);
++		goto err_drop;
++	}
+ 
+-	i = (ring->curr + n - 1) & ring_mask;
+-	ring->buf[i].len = skb->len;
+-	ring->buf[i].skb = skb;
+-	ring->buf[i].timestamp = jiffies;
++	netdev_sent_queue(dev, len);
++	curr->skb = skb;
++	curr->len = len;
+ 
+-	netdev_sent_queue(dev, skb->len);
++	dma_addr = dma_map_single(&dev->dev, skb->data, len, DMA_TO_DEVICE);
+ 
+-	skb_tx_timestamp(skb);
++	/* setup descriptor fields */
++	desc->data = (u32)dma_addr;
++	desc->ctrl = len & ag71xx_frame_len_mask;
+ 
+-	desc->ctrl &= ~DESC_EMPTY;
+-	ring->curr += n;
++	curr = curr->next;
++	ring->curr = curr;
+ 
+-	/* flush descriptor */
+-	wmb();
++	used++;
++	ring->used = used;
+ 
+-	ring_min = 2;
+-	if (ring->desc_split)
+-	    ring_min *= AG71XX_TX_RING_DS_PER_PKT;
+-
+-	if (ring->curr - ring->dirty >= ring_size - ring_min) {
+-		DBG("%s: tx queue full\n", dev->name);
++	/* If our transmit ring is full then stop transmitting. */
++	if (unlikely(used == size)) {
++		DBG("%s: tx queue full\n", ag->dev->name);
++		ag->tx_stopped = true;
+ 		netif_stop_queue(dev);
+ 	}
+ 
+ 	DBG("%s: packet injected into TX queue\n", ag->dev->name);
+ 
++	dev->trans_start = jiffies;
++
++	/* Flush descriptors */
++	wmb();
+ 	/* enable TX engine */
+-	ag71xx_wr(ag, AG71XX_REG_TX_CTRL, TX_CTRL_TXE);
++	ag71xx_wr_fast(ag->tx_ctrl_reg, TX_CTRL_TXE);
++	ag71xx_wr_flush(ag->tx_ctrl_reg);
+ 
+ 	return NETDEV_TX_OK;
+ 
+-err_drop_unmap:
+-	dma_unmap_single(&dev->dev, dma_addr, skb->len, DMA_TO_DEVICE);
+-
+ err_drop:
+ 	dev->stats.tx_dropped++;
+ 
+@@ -861,11 +1098,11 @@ static int ag71xx_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+ 
+ 	switch (cmd) {
+ 	case SIOCETHTOOL:
+-		if (ag->phy_dev == NULL)
++		if (!ag->phy_dev)
+ 			break;
+ 
+ 		spin_lock_irq(&ag->lock);
+-		ret = phy_ethtool_ioctl(ag->phy_dev, (void *) ifr->ifr_data);
++		ret = phy_ethtool_ioctl(ag->phy_dev, (void *)ifr->ifr_data);
+ 		spin_unlock_irq(&ag->lock);
+ 		return ret;
+ 
+@@ -884,7 +1121,7 @@ static int ag71xx_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+ 	case SIOCGMIIPHY:
+ 	case SIOCGMIIREG:
+ 	case SIOCSMIIREG:
+-		if (ag->phy_dev == NULL)
++		if (!ag->phy_dev)
+ 			break;
+ 
+ 		return phy_mii_ioctl(ag->phy_dev, ifr, cmd);
+@@ -896,14 +1133,6 @@ static int ag71xx_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+ 	return -EOPNOTSUPP;
+ }
+ 
+-static void ag71xx_oom_timer_handler(unsigned long data)
+-{
+-	struct net_device *dev = (struct net_device *) data;
+-	struct ag71xx *ag = netdev_priv(dev);
+-
+-	napi_schedule(&ag->napi);
+-}
+-
+ static void ag71xx_tx_timeout(struct net_device *dev)
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
+@@ -911,29 +1140,31 @@ static void ag71xx_tx_timeout(struct net_device *dev)
+ 	if (netif_msg_tx_err(ag))
+ 		pr_info("%s: tx timeout\n", ag->dev->name);
+ 
+-	schedule_delayed_work(&ag->restart_work, 1);
++	schedule_work(&ag->restart_work);
+ }
+ 
+ static void ag71xx_restart_work_func(struct work_struct *work)
+ {
+-	struct ag71xx *ag = container_of(work, struct ag71xx, restart_work.work);
+-
+-	rtnl_lock();
+-	ag71xx_hw_disable(ag);
+-	ag71xx_hw_enable(ag);
+-	if (ag->link)
+-		__ag71xx_link_adjust(ag, false);
+-	rtnl_unlock();
++	struct ag71xx *ag = container_of(work, struct ag71xx, restart_work);
++
++	if (ag71xx_get_pdata(ag)->is_ar724x) {
++		ag->link = 0;
++		ag71xx_link_adjust(ag);
++		return;
++	}
++
++	ag71xx_stop(ag->dev);
++	ag71xx_open(ag->dev);
+ }
+ 
+-static bool ag71xx_check_dma_stuck(struct ag71xx *ag, unsigned long timestamp)
++static bool ag71xx_check_dma_stuck(struct ag71xx *ag, struct net_device *dev)
+ {
+ 	u32 rx_sm, tx_sm, rx_fd;
+ 
+-	if (likely(time_before(jiffies, timestamp + HZ/10)))
++	if (likely(time_before(jiffies, dev->trans_start + HZ / 10)))
+ 		return false;
+ 
+-	if (!netif_carrier_ok(ag->dev))
++	if (!netif_carrier_ok(dev))
+ 		return false;
+ 
+ 	rx_sm = ag71xx_rr(ag, AG71XX_REG_RX_SM);
+@@ -949,153 +1180,274 @@ static bool ag71xx_check_dma_stuck(struct ag71xx *ag, unsigned long timestamp)
+ 	return false;
+ }
+ 
+-static int ag71xx_tx_packets(struct ag71xx *ag, bool flush)
++static int ag71xx_tx_packets(struct ag71xx *ag, struct net_device *dev,
++			     bool is_ar7240)
+ {
+ 	struct ag71xx_ring *ring = &ag->tx_ring;
+-	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+-	bool dma_stuck = false;
+-	int ring_mask = BIT(ring->order) - 1;
+-	int ring_size = BIT(ring->order);
+-	int sent = 0;
+-	int bytes_compl = 0;
+-	int n = 0;
+-
+-	DBG("%s: processing TX ring\n", ag->dev->name);
+-
+-	while (ring->dirty + n != ring->curr) {
+-		unsigned int i = (ring->dirty + n) & ring_mask;
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
+-		struct sk_buff *skb = ring->buf[i].skb;
+-
+-		if (!flush && !ag71xx_desc_empty(desc)) {
+-			if (pdata->is_ar724x &&
+-			    ag71xx_check_dma_stuck(ag, ring->buf[i].timestamp)) {
+-				schedule_delayed_work(&ag->restart_work, HZ / 2);
+-				dma_stuck = true;
++	unsigned int sent = 0;
++	unsigned int bytes_compl = 0;
++	struct ag71xx_buf *dirty = ring->dirty;
++	struct ag71xx_desc *desc;
++	unsigned int used = ring->used;
++	struct sk_buff *skb;
++
++	DBG("%s: processing TX ring\n", dev->name);
++
++	/* If we haven't transmitted anything then we're done! */
++	if (!used)
++		return sent;
++
++	/* Start by looking at the SKB that will be up next. */
++	skb = dirty->skb;
++	desc = dirty->desc;
++
++	do {
++		struct sk_buff *next_skb;
++
++		if (unlikely(!(desc->ctrl & DESC_EMPTY))) {
++			if (is_ar7240) {
++				if (unlikely(ag71xx_check_dma_stuck(ag, dev)))
++					schedule_work(&ag->restart_work);
+ 			}
+ 			break;
+ 		}
+ 
+-		if (flush)
+-			desc->ctrl |= DESC_EMPTY;
++		sent++;
++		bytes_compl += dirty->len;
++
++		dirty->skb = NULL;
++		dirty = dirty->next;
++		next_skb = dirty->skb;
++		desc = dirty->desc;
++
++		/* There's a good chance that the next SKB may be cold in
++		 * the cache so try to give some help.
++		 */
++		if (likely(next_skb)) {
++			prefetch(skb_shinfo(next_skb));
++			prefetch(&next_skb->users);
++		}
+ 
+-		n++;
+-		if (!skb)
+-			continue;
++		ag71xx_wr_fast(ag->tx_status_reg, TX_STATUS_PS);
+ 
+-		dev_kfree_skb_any(skb);
+-		ring->buf[i].skb = NULL;
++		dev_kfree_skb(skb);
+ 
+-		bytes_compl += ring->buf[i].len;
++		skb = next_skb;
+ 
+-		sent++;
+-		ring->dirty += n;
++		used--;
++	} while (used);
+ 
+-		while (n > 0) {
+-			ag71xx_wr(ag, AG71XX_REG_TX_STATUS, TX_STATUS_PS);
+-			n--;
+-		}
+-	}
++	ag71xx_wr_flush(ag->tx_status_reg);
+ 
+-	DBG("%s: %d packets sent out\n", ag->dev->name, sent);
++	ring->dirty = dirty;
++	ring->used = used;
+ 
+-	ag->dev->stats.tx_bytes += bytes_compl;
+-	ag->dev->stats.tx_packets += sent;
++	dev->stats.tx_bytes += bytes_compl;
++	dev->stats.tx_packets += sent;
++
++	DBG("%s: %u packets sent out\n", dev->name, sent);
+ 
+ 	if (!sent)
+ 		return 0;
+ 
+-	netdev_completed_queue(ag->dev, sent, bytes_compl);
+-	if ((ring->curr - ring->dirty) < (ring_size * 3) / 4)
+-		netif_wake_queue(ag->dev);
++	/* Mark the amount of work we've done. */
++	netdev_completed_queue(dev, sent, bytes_compl);
+ 
+-	if (!dma_stuck)
+-		cancel_delayed_work(&ag->restart_work);
++	/* If our transmit queue was previously stopped because we'd run out
++	 * of space and we've now successfully freed some space then restart
++	 * the transmit queue again.
++	 */
++	if (unlikely(ag->tx_stopped) && sent) {
++		netif_wake_queue(dev);
++		ag->tx_stopped = false;
++	}
+ 
+ 	return sent;
+ }
+ 
+-static int ag71xx_rx_packets(struct ag71xx *ag, int limit)
++#ifndef CONFIG_AG71XX_RX_NO_REPLENISH
++static void ag71xx_rx_replenish(struct ag71xx *ag)
+ {
+-	struct net_device *dev = ag->dev;
+ 	struct ag71xx_ring *ring = &ag->rx_ring;
+-	int offset = ag71xx_buffer_offset(ag);
+-	unsigned int pktlen_mask = ag->desc_pktlen_mask;
+-	int ring_mask = BIT(ring->order) - 1;
+-	int ring_size = BIT(ring->order);
+-	struct sk_buff_head queue;
++	struct ag71xx_buf *dirty = ring->dirty;
++	unsigned int rx_buf_size = ag->rx_buf_size;
++	unsigned int rx_buf_offset = ag->rx_buf_offset;
++
++	while (ring->used < ring->size) {
++		if (dirty->skb) {
++			pr_err("error: should be NULL\n");
++			break;
++		}
++		dirty->skb = dev_alloc_skb(rx_buf_size + rx_buf_offset);
++		if (unlikely(!dirty->skb)) {
++			pr_err("error: couldn't alloc new skb\n");
++			break;
++		}
++		skb_reserve(dirty->skb, rx_buf_offset);
++		dirty->desc->data = (u32)dma_map_single(&ag->dev->dev,
++					dirty->skb->data,
++					rx_buf_size, DMA_FROM_DEVICE);
++		/* Flush descriptors */
++		wmb();
++		dirty->dma_addr = (dma_addr_t)dirty->desc->data;
++		dirty->desc->ctrl = DESC_EMPTY;
++		ring->used++;
++		dirty = dirty->next;
++	}
++	ring->dirty = dirty;
++}
++#endif
++
++static int ag71xx_rx_packets(struct ag71xx *ag,
++			     struct net_device *dev, int limit)
++{
++	struct ag71xx_ring *ring = &ag->rx_ring;
++	struct ag71xx_buf *curr = ring->curr;
++	struct ag71xx_desc *desc = curr->desc;
++#ifdef CONFIG_AG71XX_RX_NO_REPLENISH
++	unsigned int rx_buf_size = ag->rx_buf_size;
++	unsigned int rx_buf_offset = ag->rx_buf_offset;
++#endif
++	int received = 0;
+ 	struct sk_buff *skb;
+-	int done = 0;
++	bool has_ar8216;
++	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 
+-	DBG("%s: rx packets, limit=%d, curr=%u, dirty=%u\n",
+-			dev->name, limit, ring->curr, ring->dirty);
++	has_ar8216 = ag71xx_has_ar8216(ag);
+ 
+-	skb_queue_head_init(&queue);
++	/* Start by looking at the SKB that will be up next. */
++	skb = curr->skb;
+ 
+-	while (done < limit) {
+-		unsigned int i = ring->curr & ring_mask;
+-		struct ag71xx_desc *desc = ag71xx_ring_desc(ring, i);
++	/* Process newly received packets. */
++	do {
++		u32 desc_ctrl;
++		struct sk_buff *next_skb;
++#ifdef CONFIG_AG71XX_RX_NO_REPLENISH
++		struct sk_buff *new_skb;
++#endif
+ 		int pktlen;
+-		int err = 0;
+ 
+-		if (ag71xx_desc_empty(desc))
+-			break;
++		/* Is our descriptor marked as empty?
++		 *  If it is then we're done.
++		 */
++		desc_ctrl = desc->ctrl;
++		if (unlikely(desc_ctrl & DESC_EMPTY)) {
++			if (pdata->ddr_flush)
++				pdata->ddr_flush();
++			desc_ctrl = desc->ctrl;
++			if (unlikely(desc_ctrl & DESC_EMPTY))
++				break;
++		}
+ 
+-		if ((ring->dirty + ring_size) == ring->curr) {
+-			ag71xx_assert(0);
++		if (unlikely(!skb))
+ 			break;
+-		}
+ 
+-		ag71xx_wr(ag, AG71XX_REG_RX_STATUS, RX_STATUS_PR);
++		if (likely(skb->len != 0))
++			dma_cache_sync(NULL, skb->data,
++				       skb->len, DMA_FROM_DEVICE);
++
++		/* Speed up eth_type_trans() since it will inspect the packet
++		 * payload and write the protocol.  Strictly speaking this is a
++		 * little premature as the next SKB alloc could fail but in
++		 * practice it never will so this is good :-)
++		 */
++		prefetch(skb->data);
++		prefetch(&skb->protocol);
++#ifdef CONFIG_AG71XX_RX_NO_REPLENISH
++		/* When we receive a packet we also allocate a new buffer.  If
++		 * for some reason we can't allocate the buffer then we're not
++		 * going to try to process the received buffer yet either.
++		 */
++		new_skb = dev_alloc_skb(rx_buf_size + rx_buf_offset);
++		if (unlikely(!new_skb))
++			break;
+ 
+-		pktlen = desc->ctrl & pktlen_mask;
+-		pktlen -= ETH_FCS_LEN;
++		skb_reserve(new_skb, rx_buf_offset);
+ 
+-		dma_unmap_single(&dev->dev, ring->buf[i].dma_addr,
+-				 ag->rx_buf_size, DMA_FROM_DEVICE);
++		/* This is where we'd unmap our buffer from the GMAC in a
++		 * general use of the DMA API.  On a MIPS platform this would
++		 * be a complete no-op so we don't bother:
++		 *
++		 * dma_unmap_single(&dev->dev, curr->dma_addr,
++		 *		    rx_buf_size, DMA_FROM_DEVICE);
++		 */
+ 
+-		dev->stats.rx_packets++;
+-		dev->stats.rx_bytes += pktlen;
++		/* Update the descriptor records to account for the new SKB. */
++		curr->skb = new_skb;
++		curr->dma_addr = dma_map_single(&dev->dev, new_skb->data,
++						rx_buf_size, DMA_FROM_DEVICE);
+ 
+-		skb = build_skb(ring->buf[i].rx_buf, ag71xx_buffer_size(ag));
+-		if (!skb) {
+-			skb_free_frag(ring->buf[i].rx_buf);
+-			goto next;
++		desc->data = (u32)curr->dma_addr;
++		/* Flush descriptors */
++		wmb();
++		desc->ctrl = DESC_EMPTY;
++#else
++		curr->skb = NULL;
++		ring->used--;
++#endif
++		/* Move forward to what will be the next RX descriptor. */
++		curr = curr->next;
++		next_skb = curr->skb;
++		desc = curr->desc;
++
++		/* Our next skb is almost certainly cold in the cache as we last
++		 * saw it when we replenished this slot.  We'll take cache
++		 * misses on almost every access.  Try to mitigate this by
++		 * issuing some prefetches.
++		 *
++		 * Note that what we're prefetching here are the fields that
++		 * we'll need within the next iteration of this function.
++		 */
++		if (likely(next_skb)) {
++			/* For a MIPS platform we shouldn't issue more than 3
++			 * prefetches at a time.
++			 */
++			prefetch(&next_skb->data);
++			prefetch(&next_skb->tail);
++			prefetch(&next_skb->len);
+ 		}
+ 
+-		skb_reserve(skb, offset);
+-		skb_put(skb, pktlen);
++		/* Notify the GMAC that we received the packet. */
++		ag71xx_wr_fast(ag->rx_status_reg, RX_STATUS_PR);
+ 
+-		if (ag71xx_has_ar8216(ag))
+-			err = ag71xx_remove_ar8216_header(ag, skb, pktlen);
++		/* Determine the size of the packet we just received. */
++		pktlen = desc_ctrl & ag71xx_frame_len_mask;
++		pktlen -= ETH_FCS_LEN;
+ 
+-		if (err) {
+-			dev->stats.rx_dropped++;
+-			kfree_skb(skb);
+-		} else {
+-			skb->dev = dev;
+-			skb->ip_summed = CHECKSUM_NONE;
+-			__skb_queue_tail(&queue, skb);
+-		}
++		/* Update device stats. */
++		dev->stats.rx_packets++;
++		dev->stats.rx_bytes += pktlen;
+ 
+-next:
+-		ring->buf[i].rx_buf = NULL;
+-		done++;
++		/* Set up the length of the skb. */
++		skb->tail += pktlen;
++		skb->len += pktlen;
+ 
+-		ring->curr++;
+-	}
++		if (unlikely(has_ar8216)) {
++			int err = ag71xx_remove_ar8216_header(ag, skb, pktlen);
+ 
+-	ag71xx_ring_rx_refill(ag);
++			if (err) {
++				dev->stats.rx_dropped++;
++				dev_kfree_skb(skb);
++				goto next;
++			}
++		}
+ 
+-	while ((skb = __skb_dequeue(&queue)) != NULL) {
+ 		skb->protocol = eth_type_trans(skb, dev);
++		skb_checksum_none_assert(skb);
+ 		netif_receive_skb(skb);
+-	}
+ 
+-	DBG("%s: rx finish, curr=%u, dirty=%u, done=%d\n",
+-		dev->name, ring->curr, ring->dirty, done);
++next:
++		skb = next_skb;
++		received++;
++	} while (received < limit);
++
++	ag71xx_wr_flush(ag->rx_status_reg);
+ 
+-	return done;
++	ring->curr = curr;
++#ifndef CONFIG_AG71XX_RX_NO_REPLENISH
++	ag71xx_rx_replenish(ag);
++#endif
++	return received;
+ }
+ 
+ static int ag71xx_poll(struct napi_struct *napi, int limit)
+@@ -1103,43 +1455,39 @@ static int ag71xx_poll(struct napi_struct *napi, int limit)
+ 	struct ag71xx *ag = container_of(napi, struct ag71xx, napi);
+ 	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 	struct net_device *dev = ag->dev;
+-	struct ag71xx_ring *rx_ring = &ag->rx_ring;
+-	int rx_ring_size = BIT(rx_ring->order);
+ 	unsigned long flags;
+ 	u32 status;
+ 	int tx_done;
+ 	int rx_done;
+ 
+-	pdata->ddr_flush();
+-	tx_done = ag71xx_tx_packets(ag, false);
++	if (pdata->ddr_flush)
++		pdata->ddr_flush();
+ 
+-	DBG("%s: processing RX ring\n", dev->name);
+-	rx_done = ag71xx_rx_packets(ag, limit);
++	/* First empty any packets that we have transmitted!  In theory it might
++	 * seem better to handle packets that we've received but we
++	 * really want to get packets that completed TX to be used to replenish
++	 * the RX descriptor ring and keeping those two operations adjacent
++	 * will help keep any recycled skbs hotter in the D-cache.
++	 */
++	tx_done = ag71xx_tx_packets(ag, dev, pdata->is_ar7240);
++	rx_done = ag71xx_rx_packets(ag, dev, limit);
+ 
+ 	ag71xx_debugfs_update_napi_stats(ag, rx_done, tx_done);
+ 
+-	if (rx_ring->buf[rx_ring->dirty % rx_ring_size].rx_buf == NULL)
+-		goto oom;
+-
+-	status = ag71xx_rr(ag, AG71XX_REG_RX_STATUS);
++	status = ag71xx_rr_fast(ag->rx_status_reg);
+ 	if (unlikely(status & RX_STATUS_OF)) {
+-		ag71xx_wr(ag, AG71XX_REG_RX_STATUS, RX_STATUS_OF);
++		ag71xx_wr_fast(ag->rx_status_reg, RX_STATUS_OF);
++		ag71xx_wr_flush(ag->rx_status_reg);
+ 		dev->stats.rx_fifo_errors++;
+ 
+ 		/* restart RX */
+-		ag71xx_wr(ag, AG71XX_REG_RX_CTRL, RX_CTRL_RXE);
++		ag71xx_wr_fast(ag->rx_ctrl_reg, RX_CTRL_RXE);
++		ag71xx_wr_flush(ag->rx_ctrl_reg);
+ 	}
+ 
+ 	if (rx_done < limit) {
+-		if (status & RX_STATUS_PR)
+-			goto more;
+-
+-		status = ag71xx_rr(ag, AG71XX_REG_TX_STATUS);
+-		if (status & TX_STATUS_PS)
+-			goto more;
+-
+ 		DBG("%s: disable polling mode, rx=%d, tx=%d,limit=%d\n",
+-			dev->name, rx_done, tx_done, limit);
++		    dev->name, rx_done, tx_done, limit);
+ 
+ 		napi_complete(napi);
+ 
+@@ -1150,18 +1498,9 @@ static int ag71xx_poll(struct napi_struct *napi, int limit)
+ 		return rx_done;
+ 	}
+ 
+-more:
+ 	DBG("%s: stay in polling mode, rx=%d, tx=%d, limit=%d\n",
+-			dev->name, rx_done, tx_done, limit);
+-	return limit;
+-
+-oom:
+-	if (netif_msg_rx_err(ag))
+-		pr_info("%s: out of memory\n", dev->name);
+-
+-	mod_timer(&ag->oom_timer, jiffies + AG71XX_OOM_REFILL);
+-	napi_complete(napi);
+-	return 0;
++	    dev->name, rx_done, tx_done, limit);
++	return rx_done;
+ }
+ 
+ static irqreturn_t ag71xx_interrupt(int irq, void *dev_id)
+@@ -1170,7 +1509,7 @@ static irqreturn_t ag71xx_interrupt(int irq, void *dev_id)
+ 	struct ag71xx *ag = netdev_priv(dev);
+ 	u32 status;
+ 
+-	status = ag71xx_rr(ag, AG71XX_REG_INT_STATUS);
++	status = ag71xx_rr_fast(ag->int_status_reg);
+ 	ag71xx_dump_intr(ag, "raw", status);
+ 
+ 	if (unlikely(!status))
+@@ -1199,8 +1538,7 @@ static irqreturn_t ag71xx_interrupt(int irq, void *dev_id)
+ }
+ 
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+-/*
+- * Polling 'interrupt' - used by things like netconsole to send skbs
++/* Polling 'interrupt' - used by things like netconsole to send skbs
+  * without having to re-enable interrupts. It's not called while
+  * the interrupt routine is executing.
+  */
+@@ -1211,21 +1549,33 @@ static void ag71xx_netpoll(struct net_device *dev)
+ 	enable_irq(dev->irq);
+ }
+ #endif
+-
+ static int ag71xx_change_mtu(struct net_device *dev, int new_mtu)
+ {
+-	struct ag71xx *ag = netdev_priv(dev);
+-	unsigned int max_frame_len;
++	int ret;
+ 
+-	max_frame_len = ag71xx_max_frame_len(new_mtu);
+-	if (new_mtu < 68 || max_frame_len > ag->max_frame_len)
++	if (new_mtu < 68 || new_mtu > AG71XX_JUMBO_LEN)
+ 		return -EINVAL;
+ 
+-	if (netif_running(dev))
+-		return -EBUSY;
++	if (!netif_running(dev)) {
++		dev->mtu = new_mtu;
++		return 0;
++	}
++
++	ag71xx_stop(dev);
++	pr_info("%s:%s new_mtu is %d\n", __func__, dev->name, new_mtu);
+ 
+ 	dev->mtu = new_mtu;
+-	return 0;
++
++	ret = ag71xx_open(dev);
++	if (ret)
++		dev_close(dev);
++
++	if (new_mtu > AG71XX_TX_MTU_LEN)
++		ag71xx_frame_len_mask = DESC_JUMBO_PKTLEN_M;
++	else
++		ag71xx_frame_len_mask = DESC_PKTLEN_M;
++
++	return ret;
+ }
+ 
+ static const struct net_device_ops ag71xx_netdev_ops = {
+@@ -1242,35 +1592,183 @@ static const struct net_device_ops ag71xx_netdev_ops = {
+ #endif
+ };
+ 
+-static const char *ag71xx_get_phy_if_mode_name(phy_interface_t mode)
++#ifdef CONFIG_OF
++static void ag71xx_init_mac(unsigned char *dst, const unsigned char *src,
++			    int offset)
+ {
+-	switch (mode) {
+-	case PHY_INTERFACE_MODE_MII:
+-		return "MII";
+-	case PHY_INTERFACE_MODE_GMII:
+-		return "GMII";
+-	case PHY_INTERFACE_MODE_RMII:
+-		return "RMII";
+-	case PHY_INTERFACE_MODE_RGMII:
+-		return "RGMII";
+-	case PHY_INTERFACE_MODE_SGMII:
+-		return "SGMII";
+-	default:
+-		break;
++	int t;
++
++	if (!dst)
++		return;
++
++	if (!src || !is_valid_ether_addr(src)) {
++		memset(dst, '\0', ETH_ALEN);
++		return;
+ 	}
+ 
+-	return "unknown";
++	t = (((u32)src[3]) << 16) + (((u32)src[4]) << 8) + ((u32)src[5]);
++	t += offset;
++
++	dst[0] = src[0];
++	dst[1] = src[1];
++	dst[2] = src[2];
++	dst[3] = (t >> 16) & 0xff;
++	dst[4] = (t >> 8) & 0xff;
++	dst[5] = t & 0xff;
+ }
+ 
++static void ag71xx_of_gmac_setup(struct platform_device *pdev, u32 mask)
++{
++	struct resource *res;
++	void __iomem *cfg_base;
++
++	res = platform_get_resource_byname(pdev,
++			IORESOURCE_MEM, "cfg_base");
++	if (!res)
++		return;
++
++	cfg_base = ioremap_nocache(res->start, res->end - res->start + 1);
++	if (!cfg_base) {
++		dev_err(&pdev->dev, "unable to ioremap cfg_base\n");
++		return;
++	}
++
++	__raw_writel(__raw_readl(cfg_base) | mask, cfg_base);
++	/* flush write */
++	(void)__raw_readl(cfg_base);
++
++	iounmap(cfg_base);
++}
++
++static int ag71xx_of_pdata_update(
++		struct platform_device *pdev,
++		struct ag71xx_platform_data *pdata)
++{
++	u32 value[5] = {0};
++	struct device_node *mdio;
++	struct platform_device *pdev_mdio;
++	const phandle *ph;
++	const u8 *mac_new;
++
++	if (!pdev->dev.of_node)
++		return -EINVAL;
++
++	if (!of_property_read_u32(pdev->dev.of_node, "reset-bit", &value[0])) {
++		/*reset gmac firstly*/
++		ath79_device_reset_set(pdata->reset_bit);
++		msleep(100);
++
++		ath79_device_reset_clear(pdata->reset_bit);
++		msleep(100);
++	}
++
++	ph = of_get_property(pdev->dev.of_node, "mdio-handle", NULL);
++	if (!ph) {
++		dev_err(&pdev->dev, "No mdio-handle in dtb\n");
++		return -EINVAL;
++	}
++
++	mdio = of_find_node_by_phandle(*ph);
++	if (!mdio) {
++		dev_err(&pdev->dev, "No mdio device found by phandle\n");
++		return -EINVAL;
++	}
++
++	pdev_mdio = of_find_device_by_node(mdio);
++	pdata->mii_bus_dev = &pdev_mdio->dev;
++	of_node_put(mdio);
++
++	value[0] = 0;
++	if (!of_property_read_u32(pdev->dev.of_node, "phy-mode",
++			&pdata->phy_if_mode)) {
++		if (pdata->phy_if_mode == PHY_INTERFACE_MODE_RGMII)
++			value[0] = 1;
++		if (!of_property_read_u32(pdev->dev.of_node,
++				"eth-cfg", &value[4]))
++			value[0] |= value[4];
++
++		if (value[0] != 0)
++			ag71xx_of_gmac_setup(pdev, value[0]);
++	}
++
++	if (!of_property_read_u32_array(pdev->dev.of_node,
++			"fifo-cfg", value, 3)) {
++		pdata->fifo_cfg1 = value[0];
++		pdata->fifo_cfg2 = value[1];
++		pdata->fifo_cfg3 = value[2];
++	}
++
++	of_property_read_u32(pdev->dev.of_node, "phy-mask", &pdata->phy_mask);
++	of_property_read_u32(pdev->dev.of_node, "force-speed", &pdata->speed);
++	of_property_read_u32(pdev->dev.of_node, "force-duplex", &pdata->duplex);
++
++	if (!of_property_read_u32_array(pdev->dev.of_node,
++			"eth-pll-data", value, 3)) {
++		pdata->pll_10 = value[0];
++		pdata->pll_100 = value[1];
++		pdata->pll_1000 = value[2];
++	}
++
++	if (!of_property_read_u32_array(pdev->dev.of_node,
++			"builtin-switch", value, 2)) {
++		struct ag71xx_switch_platform_data *pswitch;
++
++		pswitch = devm_kzalloc(&pdev->dev,
++				sizeof(struct ag71xx_switch_platform_data),
++			GFP_KERNEL);
++		if (!pswitch)
++			return -ENOMEM;
++		pswitch->phy4_mii_en = value[0];
++		pswitch->phy_poll_mask = value[1];
++		pdata->switch_data = pswitch;
++	}
++
++	of_property_read_u32(pdev->dev.of_node, "max-frame-len",
++			&pdata->max_frame_len);
++	of_property_read_u32(pdev->dev.of_node, "desc-pktlen-mask",
++			&pdata->desc_pktlen_mask);
++	of_property_read_u32(pdev->dev.of_node, "has-gbit", &value[0]);
++	pdata->has_gbit = value[0];
++	of_property_read_u32(pdev->dev.of_node, "ar724x-support", &value[0]);
++	pdata->is_ar724x = value[0];
++	of_property_read_u32(pdev->dev.of_node, "qca955x-support", &value[0]);
++	pdata->is_qca955x = value[0];
++
++	mac_new = of_get_property(pdev->dev.of_node, "local-mac-address", NULL);
++
++	ag71xx_init_mac(pdata->mac_addr, mac_new, 0);
++	if (!is_valid_ether_addr(pdata->mac_addr)) {
++		random_ether_addr(pdata->mac_addr);
++		printk(KERN_DEBUG
++			"ar71xx: using random MAC address for %x\n",
++			ag71xx_gmac_num);
++	}
++
++	return 0;
++}
++#endif
+ 
+ static int ag71xx_probe(struct platform_device *pdev)
+ {
+ 	struct net_device *dev;
+ 	struct resource *res;
+ 	struct ag71xx *ag;
++	struct ag71xx_desc *ag_stop_desc;
+ 	struct ag71xx_platform_data *pdata;
+-	int tx_size, err;
++	int err;
+ 
++#ifdef CONFIG_OF
++	pdata = devm_kzalloc(&pdev->dev, sizeof(struct ag71xx_platform_data),
++			GFP_KERNEL);
++	if (!pdata)
++		return -ENOMEM;
++	if (ag71xx_of_pdata_update(pdev, pdata)) {
++		kfree(pdata);
++		err = -EINVAL;
++		goto err_out;
++	}
++	pdev->dev.platform_data = pdata;
++#else
+ 	pdata = pdev->dev.platform_data;
+ 	if (!pdata) {
+ 		dev_err(&pdev->dev, "no platform data specified\n");
+@@ -1278,11 +1776,12 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 		goto err_out;
+ 	}
+ 
+-	if (pdata->mii_bus_dev == NULL && pdata->phy_mask) {
++	if (!pdata->mii_bus_dev) {
+ 		dev_err(&pdev->dev, "no MII bus device specified\n");
+ 		err = -EINVAL;
+ 		goto err_out;
+ 	}
++#endif
+ 
+ 	dev = alloc_etherdev(sizeof(*ag));
+ 	if (!dev) {
+@@ -1291,9 +1790,6 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 		goto err_out;
+ 	}
+ 
+-	if (!pdata->max_frame_len || !pdata->desc_pktlen_mask)
+-		return -EINVAL;
+-
+ 	SET_NETDEV_DEV(dev, &pdev->dev);
+ 
+ 	ag = netdev_priv(dev);
+@@ -1301,6 +1797,7 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 	ag->dev = dev;
+ 	ag->msg_enable = netif_msg_init(ag71xx_msg_level,
+ 					AG71XX_DEFAULT_MSG_ENABLE);
++	ag->gmac_num = ag71xx_gmac_num++;
+ 	spin_lock_init(&ag->lock);
+ 
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mac_base");
+@@ -1317,6 +1814,15 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 		goto err_free_dev;
+ 	}
+ 
++	ag->sgmii_base = 0;
++	ag->pll_base = 0;
++
++	ag->rx_ctrl_reg = ag->mac_base + AG71XX_REG_RX_CTRL;
++	ag->rx_status_reg = ag->mac_base + AG71XX_REG_RX_STATUS;
++	ag->tx_ctrl_reg = ag->mac_base + AG71XX_REG_TX_CTRL;
++	ag->tx_status_reg = ag->mac_base + AG71XX_REG_TX_STATUS;
++	ag->int_status_reg = ag->mac_base + AG71XX_REG_INT_STATUS;
++
+ 	dev->irq = platform_get_irq(pdev, 0);
+ 	err = request_irq(dev->irq, ag71xx_interrupt,
+ 			  0x0,
+@@ -1330,37 +1836,38 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 	dev->netdev_ops = &ag71xx_netdev_ops;
+ 	dev->ethtool_ops = &ag71xx_ethtool_ops;
+ 
+-	INIT_DELAYED_WORK(&ag->restart_work, ag71xx_restart_work_func);
++	INIT_WORK(&ag->restart_work, ag71xx_restart_work_func);
+ 
+-	init_timer(&ag->oom_timer);
+-	ag->oom_timer.data = (unsigned long) dev;
+-	ag->oom_timer.function = ag71xx_oom_timer_handler;
++	ag->tx_ring.size = AG71XX_TX_RING_SIZE_DEFAULT;
++	ag->tx_ring.mask = AG71XX_TX_RING_SIZE_DEFAULT - 1;
++	ag->rx_ring.size = AG71XX_RX_RING_SIZE_DEFAULT;
++	ag->rx_ring.mask = AG71XX_RX_RING_SIZE_DEFAULT - 1;
+ 
+-	tx_size = AG71XX_TX_RING_SIZE_DEFAULT;
+-	ag->rx_ring.order = ag71xx_ring_size_order(AG71XX_RX_RING_SIZE_DEFAULT);
++	ag_stop_desc = dma_alloc_coherent(NULL,
++					  sizeof(struct ag71xx_desc),
++					  &ag->stop_desc_dma, GFP_KERNEL);
+ 
+-	ag->max_frame_len = pdata->max_frame_len;
+-	ag->desc_pktlen_mask = pdata->desc_pktlen_mask;
+-
+-	if (!pdata->is_ar724x && !pdata->is_ar91xx) {
+-		ag->tx_ring.desc_split = AG71XX_TX_RING_SPLIT;
+-		tx_size *= AG71XX_TX_RING_DS_PER_PKT;
+-	}
+-	ag->tx_ring.order = ag71xx_ring_size_order(tx_size);
++	if (!ag_stop_desc)
++		goto err_free_irq;
+ 
+-	ag->stop_desc = dma_alloc_coherent(NULL,
+-		sizeof(struct ag71xx_desc), &ag->stop_desc_dma, GFP_KERNEL);
++	ag_stop_desc->data = 0;
++	ag_stop_desc->ctrl = 0;
++	ag_stop_desc->next = (u32)ag->stop_desc_dma;
++	ag->stop_desc = ag_stop_desc;
+ 
+-	if (!ag->stop_desc)
+-		goto err_free_irq;
++	ether_addr_copy(dev->dev_addr, pdata->mac_addr);
+ 
+-	ag->stop_desc->data = 0;
+-	ag->stop_desc->ctrl = 0;
+-	ag->stop_desc->next = (u32) ag->stop_desc_dma;
++	netif_napi_add(dev, &ag->napi, ag71xx_poll, AG71XX_NAPI_WEIGHT);
+ 
+-	memcpy(dev->dev_addr, pdata->mac_addr, ETH_ALEN);
++	err = register_netdev(dev);
++	if (err) {
++		dev_err(&pdev->dev, "unable to register net device\n");
++		goto err_free_desc;
++	}
++	netif_carrier_off(dev);
+ 
+-	netif_napi_add(dev, &ag->napi, ag71xx_poll, NAPI_POLL_WEIGHT);
++	pr_info("%s: Atheros AG71xx at 0x%08lx, irq %d\n",
++		dev->name, dev->base_addr, dev->irq);
+ 
+ 	ag71xx_dump_regs(ag);
+ 
+@@ -1370,7 +1877,7 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 
+ 	err = ag71xx_phy_connect(ag);
+ 	if (err)
+-		goto err_free_desc;
++		goto err_unregister_netdev;
+ 
+ 	err = ag71xx_debugfs_init(ag);
+ 	if (err)
+@@ -1378,22 +1885,12 @@ static int ag71xx_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, dev);
+ 
+-	err = register_netdev(dev);
+-	if (err) {
+-		dev_err(&pdev->dev, "unable to register net device\n");
+-		goto err_debugfs_exit;
+-	}
+-
+-	pr_info("%s: Atheros AG71xx at 0x%08lx, irq %d, mode:%s\n",
+-		dev->name, dev->base_addr, dev->irq,
+-		ag71xx_get_phy_if_mode_name(pdata->phy_if_mode));
+-
+ 	return 0;
+ 
+-err_debugfs_exit:
+-	ag71xx_debugfs_exit(ag);
+ err_phy_disconnect:
+ 	ag71xx_phy_disconnect(ag);
++err_unregister_netdev:
++	unregister_netdev(dev);
+ err_free_desc:
+ 	dma_free_coherent(NULL, sizeof(struct ag71xx_desc), ag->stop_desc,
+ 			  ag->stop_desc_dma);
+@@ -1420,6 +1917,10 @@ static int ag71xx_remove(struct platform_device *pdev)
+ 		unregister_netdev(dev);
+ 		free_irq(dev->irq, dev);
+ 		iounmap(ag->mac_base);
++		if (ag->sgmii_base)
++			iounmap(ag->sgmii_base);
++		if (ag->pll_base)
++			iounmap(ag->pll_base);
+ 		kfree(dev);
+ 		platform_set_drvdata(pdev, NULL);
+ 	}
+@@ -1427,11 +1928,23 @@ static int ag71xx_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_OF
++static const struct of_device_id ag71xx_of_match_table[] = {
++	{.compatible = "qca,ag71xx-eth"},
++	{}
++};
++#else
++#define ag71xx_of_match_table NULL
++#endif
++
+ static struct platform_driver ag71xx_driver = {
+ 	.probe		= ag71xx_probe,
+ 	.remove		= ag71xx_remove,
+ 	.driver = {
+ 		.name	= AG71XX_DRV_NAME,
++#ifdef CONFIG_OF
++		.of_match_table = ag71xx_of_match_table,
++#endif
+ 	}
+ };
+ 
+@@ -1439,10 +1952,14 @@ static int __init ag71xx_module_init(void)
+ {
+ 	int ret;
+ 
+-	ret = ag71xx_debugfs_root_init();
++	ret = ag71xx_sgmii_procfs_init();
+ 	if (ret)
+ 		goto err_out;
+ 
++	ret = ag71xx_debugfs_root_init();
++	if (ret)
++		goto err_procfs_exit;
++
+ 	ret = ag71xx_mdio_driver_init();
+ 	if (ret)
+ 		goto err_debugfs_exit;
+@@ -1457,6 +1974,8 @@ static int __init ag71xx_module_init(void)
+ 	ag71xx_mdio_driver_exit();
+ err_debugfs_exit:
+ 	ag71xx_debugfs_root_exit();
++err_procfs_exit:
++	ag71xx_sgmii_procfs_exit();
+ err_out:
+ 	return ret;
+ }
+@@ -1466,6 +1985,7 @@ static void __exit ag71xx_module_exit(void)
+ 	platform_driver_unregister(&ag71xx_driver);
+ 	ag71xx_mdio_driver_exit();
+ 	ag71xx_debugfs_root_exit();
++	ag71xx_sgmii_procfs_exit();
+ }
+ 
+ module_init(ag71xx_module_init);
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_mdio.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_mdio.c
+index 2915476569c..54ee08e2cdf 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_mdio.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_mdio.c
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -12,6 +13,10 @@
+  */
+ 
+ #include "ag71xx.h"
++#ifdef CONFIG_OF
++#include <linux/of.h>
++#include <linux/of_mdio.h>
++#endif
+ 
+ #define AG71XX_MDIO_RETRY	1000
+ #define AG71XX_MDIO_DELAY	5
+@@ -105,75 +110,19 @@ void ag71xx_mdio_mii_write(struct ag71xx_mdio *am, int addr, int reg, u16 val)
+ 	ag71xx_mdio_wait_busy(am);
+ }
+ 
+-static const u32 ar71xx_mdio_div_table[] = {
+-	4, 4, 6, 8, 10, 14, 20, 28,
+-};
+-
+-static const u32 ar7240_mdio_div_table[] = {
+-	2, 2, 4, 6, 8, 12, 18, 26, 32, 40, 48, 56, 62, 70, 78, 96,
+-};
+-
+-static const u32 ar933x_mdio_div_table[] = {
+-	4, 4, 6, 8, 10, 14, 20, 28, 34, 42, 50, 58, 66, 74, 82, 98,
+-};
+-
+-static int ag71xx_mdio_get_divider(struct ag71xx_mdio *am, u32 *div)
+-{
+-	unsigned long ref_clock, mdio_clock;
+-	const u32 *table;
+-	int ndivs;
+-	int i;
+-
+-	ref_clock = am->pdata->ref_clock;
+-	mdio_clock = am->pdata->mdio_clock;
+-
+-	if (!ref_clock || !mdio_clock)
+-		return -EINVAL;
+-
+-	if (am->pdata->is_ar9330 || am->pdata->is_ar934x) {
+-		table = ar933x_mdio_div_table;
+-		ndivs = ARRAY_SIZE(ar933x_mdio_div_table);
+-	} else if (am->pdata->is_ar7240) {
+-		table = ar7240_mdio_div_table;
+-		ndivs = ARRAY_SIZE(ar7240_mdio_div_table);
+-	} else {
+-		table = ar71xx_mdio_div_table;
+-		ndivs = ARRAY_SIZE(ar71xx_mdio_div_table);
+-	}
+-
+-	for (i = 0; i < ndivs; i++) {
+-		unsigned long t;
+-
+-		t = ref_clock / table[i];
+-		if (t <= mdio_clock) {
+-			*div = i;
+-			return 0;
+-		}
+-	}
+-
+-	dev_err(&am->mii_bus->dev, "no divider found for %lu/%lu\n",
+-		ref_clock, mdio_clock);
+-	return -ENOENT;
+-}
+-
+ static int ag71xx_mdio_reset(struct mii_bus *bus)
+ {
+ 	struct ag71xx_mdio *am = bus->priv;
+ 	u32 t;
+-	int err;
+ 
+-	err = ag71xx_mdio_get_divider(am, &t);
+-	if (err) {
+-		/* fallback */
+-		if (am->pdata->is_ar7240)
+-			t = MII_CFG_CLK_DIV_6;
+-		else if (am->pdata->builtin_switch && !am->pdata->is_ar934x)
+-			t = MII_CFG_CLK_DIV_10;
+-		else if (!am->pdata->builtin_switch && am->pdata->is_ar934x)
+-			t = MII_CFG_CLK_DIV_58;
+-		else
+-			t = MII_CFG_CLK_DIV_28;
+-	}
++	if (am->pdata->is_ar7240)
++		t = MII_CFG_CLK_DIV_6;
++	else if (am->pdata->builtin_switch && !am->pdata->is_ar934x)
++		t = MII_CFG_CLK_DIV_10;
++	else if (!am->pdata->builtin_switch && am->pdata->is_ar934x)
++		t = MII_CFG_CLK_DIV_58;
++	else
++		t = MII_CFG_CLK_DIV_28;
+ 
+ 	ag71xx_mdio_wr(am, AG71XX_REG_MII_CFG, t | MII_CFG_RESET);
+ 	udelay(100);
+@@ -181,9 +130,6 @@ static int ag71xx_mdio_reset(struct mii_bus *bus)
+ 	ag71xx_mdio_wr(am, AG71XX_REG_MII_CFG, t);
+ 	udelay(100);
+ 
+-	if (am->pdata->reset)
+-		am->pdata->reset(bus);
+-
+ 	return 0;
+ }
+ 
+@@ -191,7 +137,7 @@ static int ag71xx_mdio_read(struct mii_bus *bus, int addr, int reg)
+ {
+ 	struct ag71xx_mdio *am = bus->priv;
+ 
+-	if (am->pdata->builtin_switch)
++	if ((am->pdata->builtin_switch) && (addr < AR7240_NUM_PHYS))
+ 		return ar7240sw_phy_read(bus, addr, reg);
+ 	else
+ 		return ag71xx_mdio_mii_read(am, addr, reg);
+@@ -201,28 +147,73 @@ static int ag71xx_mdio_write(struct mii_bus *bus, int addr, int reg, u16 val)
+ {
+ 	struct ag71xx_mdio *am = bus->priv;
+ 
+-	if (am->pdata->builtin_switch)
++	if ((am->pdata->builtin_switch) && (addr < AR7240_NUM_PHYS))
+ 		ar7240sw_phy_write(bus, addr, reg, val);
+ 	else
+ 		ag71xx_mdio_mii_write(am, addr, reg, val);
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_OF
++static int ag71xx_mdio_of_pdata_update(
++		struct platform_device *pdev,
++		struct ag71xx_mdio_platform_data *pdata)
++{
++	struct device_node *np = NULL;
++	u32 val[2];
++
++	np = of_node_get(pdev->dev.of_node);
++	if (of_property_read_u32(np, "phy-mask", &pdata->phy_mask)
++		|| of_property_read_u32(np, "builtin-switch", &val[0])
++		|| of_property_read_u32(np, "ar934x-support", &val[1])) {
++		dev_err(&pdev->dev,
++			"%s: error reading critical device node properties\n",
++			np->name);
++		return -EFAULT;
++	}
++	pdata->builtin_switch = val[0];
++	pdata->is_ar934x = val[1];
++	of_property_read_u32(np, "reset-bit", &pdata->reset_bit);
++	return 0;
++}
++#endif
++
+ static int ag71xx_mdio_probe(struct platform_device *pdev)
+ {
+ 	struct ag71xx_mdio_platform_data *pdata;
+ 	struct ag71xx_mdio *am;
+ 	struct resource *res;
++
+ 	int i;
+ 	int err;
+ 
++#ifdef CONFIG_OF
++	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
++	if (!pdata) {
++		err = -ENOMEM;
++		goto err_out;
++	}
++	if (ag71xx_mdio_of_pdata_update(pdev, pdata)) {
++		dev_err(&pdev->dev, "no platform data specified\n");
++		return -EINVAL;
++	}
++	pdev->dev.platform_data = pdata;
++
++	/*reset mdio firstly*/
++	ath79_device_reset_set(pdata->reset_bit);
++	msleep(100);
++
++	ath79_device_reset_clear(pdata->reset_bit);
++	msleep(100);
++#else
+ 	pdata = pdev->dev.platform_data;
+ 	if (!pdata) {
+ 		dev_err(&pdev->dev, "no platform data specified\n");
+ 		return -EINVAL;
+ 	}
++#endif
+ 
+-	am = kzalloc(sizeof(*am), GFP_KERNEL);
++	am = devm_kzalloc(&pdev->dev, sizeof(*am), GFP_KERNEL);
+ 	if (!am) {
+ 		err = -ENOMEM;
+ 		goto err_out;
+@@ -230,35 +221,33 @@ static int ag71xx_mdio_probe(struct platform_device *pdev)
+ 
+ 	am->pdata = pdata;
+ 
++
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	if (!res) {
+ 		dev_err(&pdev->dev, "no iomem resource found\n");
+ 		err = -ENXIO;
+-		goto err_free_mdio;
++		goto err_out;
+ 	}
+ 
+-	am->mdio_base = ioremap_nocache(res->start, res->end - res->start + 1);
++	am->mdio_base = devm_ioremap_nocache(&pdev->dev,
++					res->start, resource_size(res));
+ 	if (!am->mdio_base) {
+ 		dev_err(&pdev->dev, "unable to ioremap registers\n");
+ 		err = -ENOMEM;
+-		goto err_free_mdio;
++		goto err_out;
+ 	}
+ 
+-	am->mii_bus = mdiobus_alloc();
+-	if (am->mii_bus == NULL) {
++	am->mii_bus = devm_mdiobus_alloc(&pdev->dev);
++	if (!am->mii_bus) {
+ 		err = -ENOMEM;
+-		goto err_iounmap;
++		goto err_out;
+ 	}
+ 
+ 	am->mii_bus->name = "ag71xx_mdio";
+ 	am->mii_bus->read = ag71xx_mdio_read;
+ 	am->mii_bus->write = ag71xx_mdio_write;
+ 	am->mii_bus->reset = ag71xx_mdio_reset;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+ 	am->mii_bus->irq = am->mii_irq;
+-#else
+-	memcpy(am->mii_bus->irq, am->mii_irq, sizeof(am->mii_bus->irq));
+-#endif
+ 	am->mii_bus->priv = am;
+ 	am->mii_bus->parent = &pdev->dev;
+ 	snprintf(am->mii_bus->id, MII_BUS_ID_SIZE, "%s", dev_name(&pdev->dev));
+@@ -269,21 +258,17 @@ static int ag71xx_mdio_probe(struct platform_device *pdev)
+ 
+ 	ag71xx_mdio_wr(am, AG71XX_REG_MAC_CFG1, 0);
+ 
+-	err = mdiobus_register(am->mii_bus);
++	if (pdev->dev.of_node)
++		err = of_mdiobus_register(am->mii_bus, pdev->dev.of_node);
++	else
++		err = mdiobus_register(am->mii_bus);
+ 	if (err)
+-		goto err_free_bus;
++		goto err_out;
+ 
+ 	ag71xx_mdio_dump_regs(am);
+ 
+ 	platform_set_drvdata(pdev, am);
+ 	return 0;
+-
+-err_free_bus:
+-	mdiobus_free(am->mii_bus);
+-err_iounmap:
+-	iounmap(am->mdio_base);
+-err_free_mdio:
+-	kfree(am);
+ err_out:
+ 	return err;
+ }
+@@ -294,20 +279,30 @@ static int ag71xx_mdio_remove(struct platform_device *pdev)
+ 
+ 	if (am) {
+ 		mdiobus_unregister(am->mii_bus);
+-		mdiobus_free(am->mii_bus);
+-		iounmap(am->mdio_base);
+-		kfree(am);
+ 		platform_set_drvdata(pdev, NULL);
+ 	}
+ 
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_OF
++static const struct of_device_id ag71xx_mdio_of_match_table[] = {
++	{.compatible = "qca,ag71xx-mdio"},
++	{}
++};
++#else
++#define ag71xx_mdio_of_match_table NULL
++#endif
++
++
+ static struct platform_driver ag71xx_mdio_driver = {
+ 	.probe		= ag71xx_mdio_probe,
+ 	.remove		= ag71xx_mdio_remove,
+ 	.driver = {
+ 		.name	= "ag71xx-mdio",
++#ifdef CONFIG_OF
++		.of_match_table = ag71xx_mdio_of_match_table,
++#endif
+ 	}
+ };
+ 
+diff --git a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_phy.c b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_phy.c
+index 12fa2e301bf..e9268ce44ae 100644
+--- a/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_phy.c
++++ b/target/linux/ar71xx/files/drivers/net/ethernet/atheros/ag71xx/ag71xx_phy.c
+@@ -1,6 +1,7 @@
+ /*
+  *  Atheros AR71xx built-in ethernet mac driver
+  *
++ *  Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+  *  Copyright (C) 2008-2010 Gabor Juhos <juhosg@openwrt.org>
+  *  Copyright (C) 2008 Imre Kaloz <kaloz@openwrt.org>
+  *
+@@ -13,9 +14,14 @@
+ 
+ #include "ag71xx.h"
+ 
++
++//#define CONFIG_QCA_FULLOFFLOAD
++
++
+ static void ag71xx_phy_link_adjust(struct net_device *dev)
+ {
+ 	struct ag71xx *ag = netdev_priv(dev);
++	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 	struct phy_device *phydev = ag->phy_dev;
+ 	unsigned long flags;
+ 	int status_change = 0;
+@@ -32,9 +38,15 @@ static void ag71xx_phy_link_adjust(struct net_device *dev)
+ 	if (phydev->link != ag->link)
+ 		status_change = 1;
+ 
+-	ag->link = phydev->link;
+-	ag->duplex = phydev->duplex;
+-	ag->speed = phydev->speed;
++	if (pdata->force_link) {
++		ag->link = 1;
++		ag->duplex = pdata->duplex;
++		ag->speed = pdata->speed;
++	} else {
++		ag->link = phydev->link;
++		ag->duplex = phydev->duplex;
++		ag->speed = phydev->speed;
++	}
+ 
+ 	if (status_change)
+ 		ag71xx_link_adjust(ag);
+@@ -112,7 +124,6 @@ static int ag71xx_phy_connect_multi(struct ag71xx *ag)
+ 		if (!(pdata->phy_mask & (1 << phy_addr)))
+ 			continue;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+ 		if (ag->mii_bus->phy_map[phy_addr] == NULL)
+ 			continue;
+ 
+@@ -123,18 +134,6 @@ static int ag71xx_phy_connect_multi(struct ag71xx *ag)
+ 
+ 		if (phydev == NULL)
+ 			phydev = ag->mii_bus->phy_map[phy_addr];
+-#else
+-		if (ag->mii_bus->mdio_map[phy_addr] == NULL)
+-			continue;
+-
+-		DBG("%s: PHY found at %s, uid=%08x\n",
+-			dev_name(dev),
+-			dev_name(&ag->mii_bus->mdio_map[phy_addr]->dev),
+-			ag->mii_bus->mdio_map[phy_addr]->phy_id);
+-
+-		if (phydev == NULL)
+-			phydev = mdiobus_get_phy(ag->mii_bus, phy_addr);
+-#endif
+ 	}
+ 
+ 	if (!phydev) {
+@@ -143,21 +142,13 @@ static int ag71xx_phy_connect_multi(struct ag71xx *ag)
+ 		return -ENODEV;
+ 	}
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+ 	ag->phy_dev = phy_connect(ag->dev, dev_name(&phydev->dev),
+-#else
+-	ag->phy_dev = phy_connect(ag->dev, phydev_name(phydev),
+-#endif
+ 				  &ag71xx_phy_link_adjust,
+ 				  pdata->phy_if_mode);
+ 
+ 	if (IS_ERR(ag->phy_dev)) {
+ 		dev_err(dev, "could not connect to PHY at %s\n",
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+ 			   dev_name(&phydev->dev));
+-#else
+-			   phydev_name(phydev));
+-#endif
+ 		return PTR_ERR(ag->phy_dev);
+ 	}
+ 
+@@ -170,12 +161,7 @@ static int ag71xx_phy_connect_multi(struct ag71xx *ag)
+ 	phydev->advertising = phydev->supported;
+ 
+ 	dev_info(dev, "connected to PHY at %s [uid=%08x, driver=%s]\n",
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+-		    dev_name(&phydev->dev),
+-#else
+-		    phydev_name(phydev),
+-#endif
+-		    phydev->phy_id, phydev->drv->name);
++		    dev_name(&phydev->dev), phydev->phy_id, phydev->drv->name);
+ 
+ 	ag->link = 0;
+ 	ag->speed = 0;
+@@ -223,6 +209,13 @@ int ag71xx_phy_connect(struct ag71xx *ag)
+ {
+ 	struct ag71xx_platform_data *pdata = ag71xx_get_pdata(ag);
+ 
++#if defined(CONFIG_QCA_FULLOFFLOAD) || defined(CONFIG_AG71XX_FULLOFFLOAD_TARGET)
++       pdata->phy_mask = 0;
++       pdata->speed = SPEED_1000;
++       pdata->duplex = AG71XX_SGMII_FULL_DUPLEX;
++#endif
++
++
+ 	if (pdata->mii_bus_dev == NULL ||
+ 	    pdata->mii_bus_dev->bus == NULL )
+ 		return ag71xx_phy_connect_fixed(ag);
