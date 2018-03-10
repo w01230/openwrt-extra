@@ -7,7 +7,7 @@
 # See /LICENSE for more information.
 #
 
-START=99
+START=95
 STOP=15
 
 CONFIG=adbyby
@@ -111,9 +111,9 @@ add_rule() {
 
 del_rule() {
 	iptables -t nat -D PREROUTING -j ADBYBY 2>/dev/null
-	iptables -w -t nat -F ADBYBY 2>/dev/null && iptables -t nat -X ADBYBY 2>/dev/null
+	iptables -t nat -F ADBYBY 2>/dev/null && iptables -t nat -X ADBYBY 2>/dev/null
 	iptables -t nat -F ADBYBY_GLO 2>/dev/null && iptables -t nat -X ADBYBY_GLO 2>/dev/null
-	iptables -w -t nat -F ADBYBY_ADB 2>/dev/null && iptables -t nat -X ADBYBY_ADB 2>/dev/null
+	iptables -t nat -F ADBYBY_ADB 2>/dev/null && iptables -t nat -X ADBYBY_ADB 2>/dev/null
 }
 
 start() {
@@ -128,4 +128,10 @@ start() {
 stop() {
 	del_rule
 	kill -9 $(ps|grep '/usr/share/adbyby/adbyby'|grep -v 'grep'|awk '{print$1}')
+}
+
+restart {
+	stop
+	sleep 1
+	start
 }

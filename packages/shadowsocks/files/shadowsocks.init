@@ -236,3 +236,9 @@ stop() {
 	killall -q -9 pdnsd
 	killall -q -9 dnscrypt-proxy
 }
+
+restart {
+	stop
+	sleep 1
+	start
+}
