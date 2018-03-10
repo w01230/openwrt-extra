@@ -111,9 +111,9 @@ add_rule() {
 
 del_rule() {
 	iptables -t nat -D PREROUTING -j ADBYBY 2>/dev/null
-	iptables -t nat -F ADBYBY 2>/dev/null && iptables -t nat -X ADBYBY 2>/dev/null
+	iptables -w -t nat -F ADBYBY 2>/dev/null && iptables -t nat -X ADBYBY 2>/dev/null
 	iptables -t nat -F ADBYBY_GLO 2>/dev/null && iptables -t nat -X ADBYBY_GLO 2>/dev/null
-	iptables -t nat -F ADBYBY_ADB 2>/dev/null && iptables -t nat -X ADBYBY_ADB 2>/dev/null
+	iptables -w -t nat -F ADBYBY_ADB 2>/dev/null && iptables -t nat -X ADBYBY_ADB 2>/dev/null
 }
 
 start() {
