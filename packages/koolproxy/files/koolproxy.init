@@ -140,8 +140,8 @@ del_rule() {
 start() {
 	! load_config && exit 0
 	iptables -t nat -C PREROUTING -j KOOLPROXY 2>/dev/null
-	/usr/share/koolproxy/koolproxy -d >/dev/null 2>&1 &
 	add_rule
+	/usr/share/koolproxy/koolproxy -d >/dev/null 2>&1 &
 }
 
 stop() {
