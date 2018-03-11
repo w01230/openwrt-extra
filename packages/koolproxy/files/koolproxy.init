@@ -8,7 +8,7 @@
 #
 
 START=95
-STOP=15
+STOP=16
 
 CONFIG=koolproxy
 

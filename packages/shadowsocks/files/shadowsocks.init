@@ -7,8 +7,8 @@
 # See /LICENSE for more information.
 #
 
-START=95
-STOP=15
+START=99
+STOP=16
 
 CONFIG=shadowsocks
 CONFIG_FILE=/var/etc/$CONFIG.json
@@ -237,7 +237,7 @@ stop() {
 	killall -q -9 dnscrypt-proxy
 }
 
-restart {
+restart() {
 	stop
 	sleep 1
 	start

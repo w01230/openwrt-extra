@@ -8,7 +8,7 @@
 #
 
 START=95
-STOP=15
+STOP=16
 
 CONFIG=adbyby
 
@@ -130,7 +130,7 @@ stop() {
 	kill -9 $(ps|grep '/usr/share/adbyby/adbyby'|grep -v 'grep'|awk '{print$1}')
 }
 
-restart {
+restart() {
 	stop
 	sleep 1
 	start
