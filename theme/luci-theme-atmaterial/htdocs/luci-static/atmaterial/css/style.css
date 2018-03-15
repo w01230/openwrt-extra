@@ -248,7 +248,7 @@ footer > a {
     float: left;
     top: 4rem;
     width: 17rem;
-    height: 100%;
+    bottom: 0rem;
     background-color: #222222;
 
     overflow-x: auto;
@@ -296,7 +296,7 @@ header > .container > .brand {
     line-height:60px;
     color: white;
     cursor: default;
-    background: #cc181e;
+    background: #CC181E;
     display:block;
     width:17rem;
     padding-right: 10px;
@@ -375,7 +375,7 @@ header > .container > a[class="brand"]:after {
 
 .main > .main-left > .nav {
     margin-top: 2rem;
-        font-size: 10pt;
+    font-size: 10pt;
 }
 
 .main > .main-left > .nav > li a {
@@ -384,7 +384,7 @@ header > .container > a[class="brand"]:after {
 }
 
 .main > .main-left > .nav > li:nth-last-child(1) {
-    font-size: 10pt;
+    font-size: 9pt;
     height:40px;
 }
 
@@ -441,11 +441,24 @@ header > .container > a[class="brand"]:after {
 .main > .main-left > .nav > .slide > a[data-title="Network"]:before {
     content: "\e00e";
 }
-.main > .main-left > .nav > .slide > a[data-title="Usbapps"]:before {
-    content: "\e00b";
+.main > .main-left > .nav > .slide > a[data-title="VPN"]:before {
+    content: "\e029";
 }
+
 .main > .main-left > .nav > .slide > a[data-title="Services"]:before {
     content: "\e01b";
+}
+
+.main > .main-left > .nav > .slide > a[data-title="NAS"]:before {
+    content: "\e00b";
+}
+
+.main > .main-left > .nav > .slide > a[data-title="Control"]:before {
+    content: "\e023";
+}
+
+.main > .main-left > .nav > .slide > a[data-title="Bandwidth Monitor"]:before {
+    content: "\e00f";
 }
 
 .main > .main-left > .nav > li > a[data-title="Logout"] {
@@ -613,7 +626,8 @@ fieldset {
     font-family: inherit;
 
     min-width: inherit;
-    overflow-x: hidden;
+    /* overflow-x: hidden; */
+    overflow-x: auto;
     overflow-y: hidden;
 
     border-radius: 0;
@@ -673,9 +687,11 @@ fieldset > table > tbody > tr:nth-of-type(odd) {
 /* fix progress bar */
 #swaptotal > div,
 #swapfree > div,
+#swapcache > div,
 #memfree > div,
 #membuff > div,
 #conns > div,
+#memcache > div,
 #memtotal > div {
     width: 100% !important;
     border-color:#ccc !important;
@@ -685,9 +701,11 @@ fieldset > table > tbody > tr:nth-of-type(odd) {
 
 #swaptotal > div > div,
 #swapfree > div > div,
+#swapcache > div > div,
 #memfree > div > div,
 #membuff > div > div,
 #conns > div > div,
+#memcache > div > div,
 #memtotal > div > div {
     height: 1.4rem !important;
     background-color: #e4eaec !important;
@@ -795,7 +813,7 @@ form.inline + form.inline,
 .cbi-input-reset,
 .cbi-button-remove {
     color: #fff !important;
-background: #617486;
+    background: #617486;
 }
 
 .a-to-btn {
@@ -839,7 +857,7 @@ background: #617486;
     border-top: 1px solid #e4eaec;
     border-left: 1px solid #e4eaec;
     border-right: 1px solid #e4eaec;
-        background-color: #F7F7F7;
+    background-color: #F7F7F7;
 }
 
 .cbi-tabmenu > li:hover {
@@ -1010,7 +1028,7 @@ background: #617486;
 
 /* change */
 #wan4_i, #wan6_i {
-width:50px !important;
+    width:50px !important;
 }
 
 .uci-change-list {
@@ -1311,8 +1329,8 @@ header > .container > .pull-right > * {
 }
 
 .cbi-map fieldset h3 {
- padding:10px 0;
- }
+    padding:10px 0;
+}
 
 .cbi-map fieldset ul li {
     background:#f7f7f7;
@@ -1505,7 +1523,8 @@ body.lang_pl.node-main-login .cbi-value-title {
         font-size: 18px;
         height: 3.5rem;
         line-height: 3.5rem;
-        width: initial;
+        width: calc(0% + 15rem);
+        /*width: initial;*/
         padding-left: 5px;
         padding-right: 20px;
     }
@@ -1696,12 +1715,12 @@ body.lang_pl.node-main-login .cbi-value-title {
         -webkit-overflow-scrolling: touch;
     }
 
-    .node-status-iptables > .main div > .cbi-map > form input[type="submit"]{
+    .node-status-iptables > .main div > .cbi-map > form input[type="submit"] {
         width: 100% !important;
         margin: 0;
     }
 
-    .node-status-iptables > .main div > .cbi-map > form input[type="submit"] + input[type="submit"]{
+    .node-status-iptables > .main div > .cbi-map > form input[type="submit"] + input[type="submit"] {
         margin-top: 1rem;
     }
 }

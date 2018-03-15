@@ -1,0 +1,88 @@
+From f50e2e7579de06a1063aac107012a2249c346462 Mon Sep 17 00:00:00 2001
+From: w01230 <4585006@gmail.com>
+Date: Wed, 14 Mar 2018 20:58:50 +0800
+Subject: [PATCH] openwrt:coustomize
+
+---
+ package/base-files/files/bin/config_generate        | 13 ++++++-------
+ package/kernel/mac80211/files/lib/wifi/mac80211.sh  |  7 ++++---
+ package/network/services/samba36/files/samba.config |  2 +-
+ 3 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/package/base-files/files/bin/config_generate b/package/base-files/files/bin/config_generate
+index fa148685cc..84a5080ca0 100755
+--- a/package/base-files/files/bin/config_generate
++++ b/package/base-files/files/bin/config_generate
+@@ -92,11 +92,11 @@ generate_network() {
+ 		static)
+ 			local ipad
+ 			case "$1" in
+-				lan) ipad=${ipaddr:-"192.168.1.1"} ;;
+-				*) ipad=${ipaddr:-"192.168.$((addr_offset++)).1"} ;;
++				lan) ipad=${ipaddr:-"10.0.0.1"} ;;
++				*) ipad=${ipaddr:-"10.0.$((addr_offset++)).1"} ;;
+ 			esac
+ 
+-			netm=${netmask:-"255.255.255.0"}
++			netm=${netmask:-"255.0.0.0"}
+ 
+ 			uci -q batch <<-EOF
+ 				set network.$1.proto='static'
+@@ -224,8 +224,9 @@ generate_static_system() {
+ 	uci -q batch <<-EOF
+ 		delete system.@system[0]
+ 		add system system
+-		set system.@system[-1].hostname='OpenWrt'
+-		set system.@system[-1].timezone='UTC'
++		set system.@system[-1].hostname='Wolf'
++		set system.@system[-1].timezone='CST-8'
++		set system.@system[-1].zonename='Asia/Shanghai'
+ 		set system.@system[-1].ttylogin='0'
+ 		set system.@system[-1].log_size='64'
+ 		set system.@system[-1].urandom_seed='0'
+@@ -236,8 +237,6 @@ generate_static_system() {
+ 		set system.ntp.enable_server='0'
+ 		add_list system.ntp.server='0.openwrt.pool.ntp.org'
+ 		add_list system.ntp.server='1.openwrt.pool.ntp.org'
+-		add_list system.ntp.server='2.openwrt.pool.ntp.org'
+-		add_list system.ntp.server='3.openwrt.pool.ntp.org'
+ 	EOF
+ 
+ 	if json_is_a system object; then
+diff --git a/package/kernel/mac80211/files/lib/wifi/mac80211.sh b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
+index 354077733e..c9d77a8a9a 100644
+--- a/package/kernel/mac80211/files/lib/wifi/mac80211.sh
++++ b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
+@@ -116,14 +116,15 @@ detect_mac80211() {
+ 			set wireless.radio${devidx}.hwmode=11${mode_band}
+ 			${dev_id}
+ 			${ht_capab}
+-			set wireless.radio${devidx}.disabled=1
++			set wireless.radio${devidx}.disabled=0
+ 
+ 			set wireless.default_radio${devidx}=wifi-iface
+ 			set wireless.default_radio${devidx}.device=radio${devidx}
+ 			set wireless.default_radio${devidx}.network=lan
+ 			set wireless.default_radio${devidx}.mode=ap
+-			set wireless.default_radio${devidx}.ssid=OpenWrt
+-			set wireless.default_radio${devidx}.encryption=none
++			set wireless.default_radio${devidx}.ssid=Wolf
++			set wireless.default_radio${devidx}.encryption=psk2
++			set wireless.default_radio${devidx}.key=00000000
+ EOF
+ 		uci -q commit wireless
+ 
+diff --git a/package/network/services/samba36/files/samba.config b/package/network/services/samba36/files/samba.config
+index c79db0d322..5f8350dda0 100644
+--- a/package/network/services/samba36/files/samba.config
++++ b/package/network/services/samba36/files/samba.config
+@@ -1,5 +1,5 @@
+ config samba
+-	option 'name'			'OpenWrt'
++	option 'name'			'Wolf'
+ 	option 'workgroup'		'WORKGROUP'
+ 	option 'description'		'OpenWrt'
+ 	option 'homes'			'1'
+-- 
+2.16.2
+

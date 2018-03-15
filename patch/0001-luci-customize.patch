@@ -1,0 +1,38 @@
+From 03bd0bd590859d15419453c91d1cf107f192edfb Mon Sep 17 00:00:00 2001
+From: w01230 <4585006@gmail.com>
+Date: Wed, 14 Mar 2018 16:50:04 +0800
+Subject: [PATCH] luci:customize
+
+---
+ collections/luci/Makefile              | 2 +-
+ modules/luci-base/root/etc/config/luci | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/collections/luci/Makefile b/collections/luci/Makefile
+index 9b495c3..0d0ec62 100644
+--- a/collections/luci/Makefile
++++ b/collections/luci/Makefile
+@@ -11,7 +11,7 @@ LUCI_BASENAME:=luci
+ 
+ LUCI_TITLE:=Standard OpenWrt set including full admin with ppp support and the default Bootstrap theme
+ LUCI_DEPENDS:= \
+-	+uhttpd +uhttpd-mod-ubus +luci-mod-admin-full +luci-theme-bootstrap \
++	+uhttpd +uhttpd-mod-ubus +luci-mod-admin-full +luci-theme-atmaterial \
+ 	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
+ 	+rpcd-mod-rrdns
+ 
+diff --git a/modules/luci-base/root/etc/config/luci b/modules/luci-base/root/etc/config/luci
+index baa3ac5..2fa00d4 100644
+--- a/modules/luci-base/root/etc/config/luci
++++ b/modules/luci-base/root/etc/config/luci
+@@ -1,6 +1,6 @@
+ config core main
+ 	option lang auto
+-	option mediaurlbase /luci-static/bootstrap
++	option mediaurlbase /luci-static/atmaterial
+ 	option resourcebase /luci-static/resources
+ 	
+ config extern flash_keep
+-- 
+2.16.2
+
