@@ -7,8 +7,8 @@
 # See /LICENSE for more information.
 #
 
-START=98
-STOP=16
+START=95
+STOP=15
 
 CONFIG=adbyby
 
@@ -131,6 +131,5 @@ stop() {
 
 restart() {
 	stop
-	sleep 1
 	start
 }
