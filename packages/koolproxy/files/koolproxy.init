@@ -8,7 +8,7 @@
 #
 
 START=95
-STOP=16
+STOP=15
 
 CONFIG=koolproxy
 
@@ -151,6 +151,5 @@ stop() {
 
 restart() {
 	stop
-	sleep 1
 	start
 }
