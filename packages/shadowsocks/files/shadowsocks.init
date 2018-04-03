@@ -92,11 +92,9 @@ start_dns() {
 			>/dev/null 2>&1 &
 		;;
 		pdnsd)
-			/etc/init.d/dnscrypt-proxy stop
 			/etc/init.d/pdnsd restart
 		;;
 		dnscrypt-proxy)
-			/etc/init.d/pdnsd stop
 			/etc/init.d/dnscrypt-proxy restart
 		;;
 	esac
@@ -222,9 +220,12 @@ start() {
 	! load_config && exit 0
 	#避免重复开启服务
 	iptables -t nat -C PREROUTING -j SHADOWSOCKS 2>/dev/null;
-	add_rule
+	if [ $? -eq 0 ]; then
+		del_rule
+	fi
 	start_redir
 	start_dns
+	add_rule
 }
 
 stop() {
