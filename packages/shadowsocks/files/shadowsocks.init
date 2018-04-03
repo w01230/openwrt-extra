@@ -230,12 +230,12 @@ start() {
 
 stop() {
 	del_rule
-	killall -q -9 ss-redir
-	killall -q -9 ss-tunnel
-	killall -q -9 ss-local
-	killall -q -9 dns2socks
-	killall -q -9 pdnsd
-	killall -q -9 dnscrypt-proxy
+	killall -q -9 ss-redir 2>/dev/null
+	killall -q -9 ss-tunnel 2>/dev/null
+	killall -q -9 ss-local 2>/dev/null
+	killall -q -9 dns2socks 2>/dev/null
+	killall -q -9 pdnsd 2>/dev/null
+	killall -q -9 dnscrypt-proxy 2>/dev/null
 }
 
 restart() {
