@@ -80,22 +80,11 @@ start_dns() {
 			-L $DNS_FORWARD \
 			-f /var/run/ss-tunnel.pid
 		;;
-		dns2socks)
-			/usr/bin/ss-local \
-			-c $CONFIG_FILE $ARG_OTA \
-			-f /var/run/ss-local.pid \
-			-l 1081
-			/usr/bin/dns2socks \
-			127.0.0.1:1081 \
-			$DNS_FORWARD \
-			127.0.0.1:5300 \
-			>/dev/null 2>&1 &
-		;;
 		pdnsd)
 			/etc/init.d/pdnsd restart
 		;;
-		dnscrypt-proxy)
-			/etc/init.d/dnscrypt-proxy restart
+		dnscrypt-proxy2)
+			/usr/bin/dnscrypt-proxy2 -c /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
 		;;
 	esac
 }
@@ -235,7 +224,7 @@ stop() {
 	killall -q -9 ss-local 2>/dev/null
 	killall -q -9 dns2socks 2>/dev/null
 	killall -q -9 pdnsd 2>/dev/null
-	killall -q -9 dnscrypt-proxy 2>/dev/null
+	killall -q -9 dnscrypt-proxy2 2>/dev/null
 }
 
 restart() {

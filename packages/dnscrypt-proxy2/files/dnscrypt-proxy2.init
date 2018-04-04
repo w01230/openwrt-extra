@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2015 OpenWrt-dist
+# Copyright (C) 2016 JohnW <4585006@gmail.com>
+#
+# This is free software, licensed under the GNU General Public License v3.
+# See /LICENSE for more information.
+#
+
+START=95
+STOP=15
+
+CONFIG=dnscrypt_proxy2
+
+start() {
+	/usr/bin/dnscrypt_proxy2 -c /etc/dnscrypt_proxy2/dnscrypt-proxy.toml
+}
+
+stop() {
+	killall -9 dnscrypt_proxy2
+}
+
+restart() {
+	stop
+	start
+}

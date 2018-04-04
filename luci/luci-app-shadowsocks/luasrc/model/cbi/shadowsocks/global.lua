@@ -60,7 +60,7 @@ if is_installed("dns2socks") then
 end
 o:value("ss-tunnel", "ss-tunnel")
 o:value("pdnsd", "pdnsd")
-o:value("dnscrypt-proxy", "dnscrypt-proxy")
+o:value("dnscrypt-proxy2", "dnscrypt-proxy2")
 
 o = s:option(Value, "dns_forward", translate("DNS Forward Address"))
 o.default = "8.8.8.8:53"

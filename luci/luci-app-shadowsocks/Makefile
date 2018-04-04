@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Support for Shadowsocks
-LUCI_DEPENDS:=+shadowsocks +pdnsd +dns2socks +dnscrypt-proxy
+LUCI_DEPENDS:=+shadowsocks +pdnsd +dnscrypt-proxy2
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk

@@ -1,0 +1,13 @@
+#!/bin/sh
+
+uci -q batch <<-EOT
+	delete firewall.dnscrypt_proxt2
+	set firewall.dnscrypt_proxt2=include
+	set firewall.dnscrypt_proxt2.type=script
+	set firewall.dnscrypt_proxt2.path=/etc/dnscrypt_proxt2/firewall.include
+	set firewall.dnscrypt_proxt2.family=any
+	set firewall.dnscrypt_proxt2.reload=1
+	commit firewall
+EOT
+
+exit 0
