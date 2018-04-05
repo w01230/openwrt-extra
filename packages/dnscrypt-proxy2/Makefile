@@ -43,7 +43,7 @@ define Package/dnscrypt-proxy2/install
 	$(INSTALL_DIR) $(1)/usr/bin/ $(1)/etc/init.d/ $(1)/etc/uci-defaults/ $(1)/etc/dnscrypt-proxy2 $(1)/etc/
 	$(CP) ./files/_common/* $(1)/etc/dnscrypt-proxy2/
 
-	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/bin/dnscrypt-proxy2
+#	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/bin/dnscrypt-proxy2
 #	$(INSTALL_BIN) ./files/dnscrypt-proxy2.init $(1)/etc/init.d/dnscrypt-proxy2
 
 #	$(INSTALL_DATA) ./files/dnscrypt-proxy2.defaults $(1)/etc/uci-defaults/95-dnscrypt-proxy2
