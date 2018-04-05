@@ -7,9 +7,7 @@
 	2) select app and make
 
 ## bug:
-	do not start koolproxy
-	1) need remove koolproxy in /usr/share/koolproxy
-	2）download koolproxy form https://koolproxy.com/downloads/$(ARCH) ($(ARCH) = mips mipsel arm or x86_64)
-	
+	upx compressed binary file(adbyby koolproxy dnscrypt-proxy2) is not put into firmware, if do this
+	the binary file will be broken. It needs to copy into openwrt manually via ssh or samba. 	
 ## Thanks:
-     Thanks for [crwnet](https://github.com/crwnet), [shadowsocks](https://github.com/shadowsocks) etc.
+     Thanks for [crwnet](httttps://github.com/crwnet), [shadowsocks](https://github.com/shadowsocks) etc.
