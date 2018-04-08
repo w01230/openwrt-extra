@@ -72,6 +72,9 @@ start_redir() {
 }
 
 start_dns() {
+	PID_FILE=/var/run/pdnsd.pid
+	CACHEDIR=/var/pdnsd
+	CACHE=$CACHEDIR/pdnsd.cache
 	case "$DNS_MODE" in
 		ss-tunnel)
 			/usr/bin/ss-tunnel \
@@ -81,7 +84,13 @@ start_dns() {
 			-f /var/run/ss-tunnel.pid
 		;;
 		pdnsd)
-			/etc/init.d/pdnsd restart
+               		if ! test -f "$CACHE"; then
+                		mkdir -p `dirname $CACHE`
+               			dd if=/dev/zero of="$CACHE" bs=1 count=4 2> /dev/null
+               			chown -R nobody.nogroup $CACHEDIR
+       			fi
+				
+       			/usr/sbin/pdnsd --daemon -p $PID_FILE
 		;;
 		dnscrypt-proxy2)
 			/usr/bin/dnscrypt-proxy2 -c /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
@@ -221,10 +230,11 @@ stop() {
 	del_rule
 	killall -q -9 ss-redir 2>/dev/null
 	killall -q -9 ss-tunnel 2>/dev/null
-	killall -q -9 ss-local 2>/dev/null
-	killall -q -9 dns2socks 2>/dev/null
 	killall -q -9 pdnsd 2>/dev/null
 	killall -q -9 dnscrypt-proxy2 2>/dev/null
+	if test -f $PID_FILE; then
+		rm -rf $PID_FILE;
+	fi	
 }
 
 restart() {
