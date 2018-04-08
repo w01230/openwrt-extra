@@ -47,7 +47,7 @@ define Package/adbyby/install
 	$(INSTALL_DIR) $(1)/usr/share/adbyby/ $(1)/etc/init.d/ $(1)/etc/uci-defaults/ $(1)/etc/config/ $(1)/etc/
 	$(CP) ./files/_common/* $(1)/usr/share/adbyby/
 
-#	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/adbyby/adbyby
+	$(INSTALL_BIN) ./files/binary/$(ARCH) $(1)/usr/share/adbyby/adbyby
 	$(INSTALL_BIN) ./files/adbyby.init $(1)/etc/init.d/adbyby
 
 	$(INSTALL_DATA) ./files/adbyby.defaults $(1)/etc/uci-defaults/95-adbyby
