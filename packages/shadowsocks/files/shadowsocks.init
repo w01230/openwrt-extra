@@ -93,7 +93,7 @@ start_dns() {
        			/usr/sbin/pdnsd --daemon -p $PID_FILE
 		;;
 		dnscrypt-proxy2)
-			/usr/bin/dnscrypt-proxy2 -c /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
+			/usr/bin/dnscrypt-proxy2 -config /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
 		;;
 	esac
 }
