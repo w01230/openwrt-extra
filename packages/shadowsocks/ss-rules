@@ -1,0 +1,9 @@
+#global 
+sudo ss-rules -s 172.93.46.34 -l 1080 -d SS_SPEC_WAN_FW -o -I enp0s3
+
+#chnroute
+sudo ss-rules -s 172.93.46.34 -l 1080 -B /home/john/chnroute.txt -d SS_SPEC_WAN_AC -o -I enp0s3
+
+#gfwlist
+ipset create gfwlist hash:ip
+iptables -t nat -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
