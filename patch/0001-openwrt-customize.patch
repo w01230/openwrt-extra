@@ -1,14 +1,27 @@
-From f50e2e7579de06a1063aac107012a2249c346462 Mon Sep 17 00:00:00 2001
+From c800ff1874310c6b17327fa4002d0d570f515244 Mon Sep 17 00:00:00 2001
 From: w01230 <4585006@gmail.com>
-Date: Wed, 14 Mar 2018 20:58:50 +0800
-Subject: [PATCH] openwrt:coustomize
+Date: Fri, 27 Apr 2018 20:33:42 +0800
+Subject: [PATCH] openwrt-customize
 
 ---
+ feeds.conf.default                                  |  1 +
  package/base-files/files/bin/config_generate        | 13 ++++++-------
  package/kernel/mac80211/files/lib/wifi/mac80211.sh  |  7 ++++---
  package/network/services/samba36/files/samba.config |  2 +-
- 3 files changed, 11 insertions(+), 11 deletions(-)
+ 4 files changed, 12 insertions(+), 11 deletions(-)
 
+diff --git a/feeds.conf.default b/feeds.conf.default
+index da6c665624..71241f911f 100644
+--- a/feeds.conf.default
++++ b/feeds.conf.default
+@@ -2,6 +2,7 @@ src-git packages https://git.openwrt.org/feed/packages.git
+ src-git luci https://git.openwrt.org/project/luci.git
+ src-git routing https://git.openwrt.org/feed/routing.git
+ src-git telephony https://git.openwrt.org/feed/telephony.git
++src-git extra https://github.com/w01230/openwrt-extra.git
+ #src-git video https://github.com/openwrt/video.git
+ #src-git targets https://github.com/openwrt/targets.git
+ #src-git management https://github.com/openwrt-management/packages.git
 diff --git a/package/base-files/files/bin/config_generate b/package/base-files/files/bin/config_generate
 index fa148685cc..84a5080ca0 100755
 --- a/package/base-files/files/bin/config_generate
@@ -50,10 +63,10 @@ index fa148685cc..84a5080ca0 100755
  
  	if json_is_a system object; then
 diff --git a/package/kernel/mac80211/files/lib/wifi/mac80211.sh b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
-index 354077733e..c9d77a8a9a 100644
+index 511a9188db..8b7169f049 100644
 --- a/package/kernel/mac80211/files/lib/wifi/mac80211.sh
 +++ b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
-@@ -116,14 +116,15 @@ detect_mac80211() {
+@@ -113,14 +113,15 @@ detect_mac80211() {
  			set wireless.radio${devidx}.hwmode=11${mode_band}
  			${dev_id}
  			${ht_capab}
@@ -84,5 +97,5 @@ index c79db0d322..5f8350dda0 100644
  	option 'description'		'OpenWrt'
  	option 'homes'			'1'
 -- 
-2.16.2
+2.17.0
 
