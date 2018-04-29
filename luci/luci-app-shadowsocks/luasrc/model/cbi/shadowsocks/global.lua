@@ -4,11 +4,6 @@ openwrt-dist-luci: ShadowSocks
 
 local ds = require "luci.dispatcher"
 local ipkg = require "luci.model.ipkg"
-local uci = luci.model.uci.cursor()
-
-local shadowsocks = "shadowsocks"
-local m, s, o
-
 local m, s, o
 local shadowsocks = "shadowsocks"
 local uci = luci.model.uci.cursor()
