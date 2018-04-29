@@ -85,14 +85,20 @@ msgstr "加密方式"
 msgid "Ping Latency"
 msgstr "Ping 延迟"
 
-msgid "Shadowsocks ACLs"
+msgid "Enable"
+msgstr "启用"
+
+msgid "Proxy Type"
+msgstr "代理类型"
+
+msgid "LAN Hosts"
+msgstr "内网主机"
+
+msgid "Local Port"
+msgstr "本地端口"
+
+msgid "Access Control"
 msgstr "访问控制"
 
-msgid "ACLs is a tools which used to designate specific IP proxy mode"
-msgstr "访问控制列表是用于指定特殊IP代理模式的工具"
-
-msgid "IP Address"
-msgstr "内部IP地址"
-
-msgid "Dest Ports"
-msgstr "目标端口"
+msgid "Zone LAN"
+msgstr "内网区域

@@ -4,7 +4,7 @@ uci -q batch <<-EOT
 	delete firewall.shadowsocks
 	set firewall.shadowsocks=include
 	set firewall.shadowsocks.type=script
-	set firewall.shadowsocks.path=/usr/share/shadowsocks/firewall.include
+	set firewall.shadowsocks.path=/etc/shadowsocks/firewall.include
 	set firewall.shadowsocks.family=any
 	set firewall.shadowsocks.reload=1
 	commit firewall

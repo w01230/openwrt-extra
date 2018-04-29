@@ -9,6 +9,45 @@ local uci = luci.model.uci.cursor()
 local shadowsocks = "shadowsocks"
 local m, s, o
 
+local m, s, o
+local shadowsocks = "shadowsocks"
+local uci = luci.model.uci.cursor()
+local nwm = require("luci.model.network").init()
+local lan_ifaces = {}
+local io = require "io"
+
+local function ipv4_hints(callback)
+	local hosts = {}
+	uci:foreach("dhcp", "dnsmasq", function(s)
+		if s.leasefile and nixio.fs.access(s.leasefile) then
+			for e in io.lines(s.leasefile) do
+				mac, ip, name = e:match("^%d+ (%S+) (%S+) (%S+)")
+				if mac and ip then
+					hosts[ip] = name ~= "*" and name or mac:upper()
+				end
+			end
+		end
+	end)
+	uci:foreach("dhcp", "host", function(s)
+		for mac in luci.util.imatch(s.mac) do
+			hosts[s.ip] = s.name or mac:upper()
+		end
+	end)
+	for ip, name in pairs(hosts) do
+		callback(ip, name)
+	end
+end
+
+for _, net in ipairs(nwm:get_networks()) do
+	if net:name() ~= "loopback" and string.find(net:name(), "wan") ~= 1 then
+		net = nwm:get_network(net:name())
+		local device = net and net:get_interface()
+		if device then
+			lan_ifaces[device:name()] = device:get_i18n()
+		end
+	end
+end
+
 function is_installed(name)
 	return ipkg.installed(name)
 end
@@ -49,7 +88,6 @@ o:value("disable", translate("No Proxy"))
 o:value("global", translate("Global Proxy"))
 o:value("gfwlist", translate("GFW List"))
 o:value("chnroute", translate("China WhiteList"))
-o:value("gamemode", translate("Game Mode"))
 
 o = s:option(ListValue, "dns_mode", translate("DNS Forward Mode"))
 o.default = "dns2socks"
@@ -95,30 +133,28 @@ o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocks/ping"
 o.width = "20%"
 
-s = m:section(TypedSection, "acl_rule", translate("Shadowsocks ACLs"),
-	translate("ACLs is a tools which used to designate specific IP proxy mode"))
-s.template  = "cbi/tblsection"
-s.sortable  = true
-s.anonymous = true
+-- [[ LAN Hosts ]]--
+s = m:section(TypedSection, "lan_hosts", translate("LAN Hosts"))
+s.template = "cbi/tblsection"
 s.addremove = true
+s.anonymous = true
 
-o = s:option(Value, "ipaddr", translate("IP Address"))
-o.width = "40%"
-o.datatype    = "ip4addr"
-o.placeholder = "0.0.0.0/0"
-
-o = s:option(ListValue, "proxy_mode", translate("Proxy Mode"))
-o.width = "30%"
-o.default = "disable"
+o = s:option(Value, "host", translate("Host"))
+ipv4_hints(function(ip, name)
+	o:value(ip, "%s (%s)" %{ip, name})
+end)
+o.datatype = "ip4addr"
 o.rmempty = false
-o:value("disable", translate("No Proxy"))
-o:value("global", translate("Global Proxy"))
-o:value("gfwlist", translate("GFW List"))
-o:value("chnroute", translate("China WhiteList"))
-o:value("gamemode", translate("Game Mode"))
 
-o = s:option(Value, "ports", translate("Dest Ports"))
-o.width = "30%"
-o.placeholder = "80,443"
+o = s:option(ListValue, "type", translate("Proxy Type"))
+o:value("b", translate("No Proxy"))
+o:value("g", translate("Global Proxy"))
+o:value("n", translate("GFW List"))
+o:value("n", translate("China WhiteList"))
+o.rmempty = false
+
+o = s:option(Flag, "enable", translate("Enable"))
+o.default = "1"
+o.rmempty = false
 
 return m

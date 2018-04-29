@@ -1,7 +1,6 @@
 #!/bin/sh /etc/rc.common
 #
 # Copyright (C) 2015 OpenWrt-dist
-# Copyright (C) 2016 Chen RuiWei <crwbak@gmail.com>
 #
 # This is free software, licensed under the GNU General Public License v3.
 # See /LICENSE for more information.
@@ -27,12 +26,16 @@ uci_get_by_type() {
 	echo ${ret:=$3}
 }
 
-factor(){
-	if [ -z "$1" ] || [ -z "$2" ]; then
-		echo ""
-	else
-		echo "$2 $1"
-	fi
+uci_bool_by_name() {
+	case "$(uci_get_by_name $1 $2)" in
+		1|on|true|yes|enabled) return 0;;
+	esac
+	return 1
+}
+
+get_lan_hosts() {
+	uci_bool_by_name $1 enable && \
+		echo "$(uci_get_by_name $1 type),$(uci_get_by_name $1 host)"
 }
 
 gen_config_file() {
@@ -58,8 +61,10 @@ load_config() {
 	DNS_MODE=$(uci_get_by_type global dns_mode ss-tunnel)
 	DNS_FORWARD=$(uci_get_by_type global dns_forward 8.8.8.8:53)
 	
+	SERVER=$(uci_get_by_name $GLOBAL_SERVER server)
 	LOCAL_PORT=$(uci_get_by_name $GLOBAL_SERVER local_port)
 	gen_config_file $GLOBAL_SERVER
+
 	return 0
 }
 
@@ -72,172 +77,70 @@ start_redir() {
 }
 
 start_dns() {
-	PID_FILE=/var/run/pdnsd.pid
 	CACHEDIR=/var/pdnsd
 	CACHE=$CACHEDIR/pdnsd.cache
 	case "$DNS_MODE" in
-		ss-tunnel)
-			/usr/bin/ss-tunnel \
-			-c $CONFIG_FILE $ARG_OTA ${ARG_UDP:="-u"} \
-			-l 5300 \
-			-L $DNS_FORWARD \
-			-f /var/run/ss-tunnel.pid
-		;;
-		pdnsd)
-               		if ! test -f "$CACHE"; then
-                		mkdir -p `dirname $CACHE`
-               			dd if=/dev/zero of="$CACHE" bs=1 count=4 2> /dev/null
-               			chown -R nobody.nogroup $CACHEDIR
-       			fi
-				
-       			/usr/sbin/pdnsd --daemon -p $PID_FILE
-		;;
-		dnscrypt-proxy2)
-			/usr/bin/dnscrypt-proxy2 -config /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
-		;;
+	ss-tunnel)
+		/usr/bin/ss-tunnel \
+		-c $CONFIG_FILE $ARG_OTA ${ARG_UDP:="-u"} \
+		-l 5300 \
+		-L $DNS_FORWARD \
+		-f /var/run/ss-tunnel.pid
+	;;
+	pdnsd)
+        	if ! test -f "$CACHE"; then
+        		mkdir -p `dirname $CACHE`
+        		dd if=/dev/zero of="$CACHE" bs=1 count=4 2> /dev/null
+			chown -R nobody.nogroup $CACHEDIR
+       		fi
+			
+       		/usr/sbin/pdnsd --daemon -p /var/run/pdnsd.pid
+	;;
+	dnscrypt-proxy2)
+		/usr/bin/dnscrypt-proxy2 -config /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml
+	;;
 	esac
 }
 
-get_action_chain() {
-	case "$1" in
-		disable)
-			echo "RETURN"
-		;;
-		global)
-			echo "SHADOWSOCKS_GLO"
-		;;
-		gfwlist)
-			echo "SHADOWSOCKS_GFW"
-		;;
-		chnroute)
-			echo "SHADOWSOCKS_CHN"
-		;;
-		gamemode)
-			echo "SHADOWSOCKS_GAM"
-		;;
+set_ss_nat() {
+	LAN_HOSTS="$(config_foreach get_lan_hosts lan_hosts)"
+	case "$PROXY_MODE" in
+	disable)
+		/usr/bin/ss-rules -f
+	;;
+	global)
+		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -d SS_SPEC_WAN_FW -o -a $LAN_HOSTS
+	;;
+	gfwlist)
+		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -b 0.0.0.0/1 128.0.0.0/1 -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS
+		ipset create gfwlist hash:ip
+		iptables -t nat -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
+	;;
+	chnroute)
+		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -B /etc/shadowsocks/chnroute.txt -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS	
+	;;
 	esac
-}
-
-get_jump_mode(){
-	case "$1" in
-		disable)
-			echo "j"
-		;;
-		*)
-			echo "g"
-		;;
-	esac
-}
-
-add_rule() {
-	#创建所需的ipset
-	IPSET_GFW="gfw"
-	IPSET_CHN="chnroute"
-	IPSET_CDN="cdn"
-	ipset -! create $IPSET_GFW iphash
-	ipset -! create $IPSET_CDN iphash
-	ipset -! create $IPSET_CHN nethash && ipset flush $IPSET_CHN
-	sed -e "s/^/add $IPSET_CHN &/g" /usr/share/shadowsocks/chnroute.txt | awk '{print $0} END{print "COMMIT"}' | ipset -R
-
-	#生成代理规则
-	#  忽略特殊IP段
-	iptables -t nat -N SHADOWSOCKS
-	iptables -t nat -I PREROUTING -j SHADOWSOCKS
-	iptables -t nat -A SHADOWSOCKS -d 0.0.0.0/8 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 10.0.0.0/8 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 127.0.0.0/8 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 169.254.0.0/16 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 172.16.0.0/12 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 192.168.0.0/16 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 224.0.0.0/4 -j RETURN
-	iptables -t nat -A SHADOWSOCKS -d 240.0.0.0/4 -j RETURN
-	#  生成对应CHAIN
-	iptables -t nat -N SHADOWSOCKS_GLO
-	iptables -t nat -A SHADOWSOCKS_GLO -p tcp -j REDIRECT --to $LOCAL_PORT
-	iptables -t nat -N SHADOWSOCKS_GFW
-	iptables -t nat -A SHADOWSOCKS_GFW -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $LOCAL_PORT
-	iptables -t nat -N SHADOWSOCKS_CHN
-	iptables -t nat -A SHADOWSOCKS_CHN -p tcp -m set --match-set $IPSET_GFW dst -j REDIRECT --to $LOCAL_PORT
-	iptables -t nat -A SHADOWSOCKS_CHN -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $LOCAL_PORT
-	#  游戏模式
-	iptables -t nat -N SHADOWSOCKS_GAM
-	iptables -t nat -A SHADOWSOCKS_GAM -p tcp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j REDIRECT --to $LOCAL_PORT
-	ip route add local 0.0.0.0/0 dev lo table 100
-	ip rule add fwmark 0x01/0x01 table 100
-	iptables -t mangle -N SHADOWSOCKS
-	iptables -t mangle -I PREROUTING -j SHADOWSOCKS
-	iptables -t mangle -A SHADOWSOCKS -d 0.0.0.0/8 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 10.0.0.0/8 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 127.0.0.0/8 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 169.254.0.0/16 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 172.16.0.0/12 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 192.168.0.0/16 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 224.0.0.0/4 -j RETURN
-	iptables -t mangle -A SHADOWSOCKS -d 240.0.0.0/4 -j RETURN
-	iptables -t mangle -N SHADOWSOCKS_GAM
-	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set --match-set $IPSET_GFW dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
-	iptables -t mangle -A SHADOWSOCKS_GAM -p udp -m set ! --match-set $IPSET_CDN dst -m set ! --match-set $IPSET_CHN dst -j TPROXY --on-port $LOCAL_PORT --tproxy-mark 0x01/0x01
-	#  加载ACLS
-	for i in $(seq 0 1000)
-	do
-		local ip=$(uci_get_by_type acl_rule ipaddr '' $i)
-		local mode=$(uci_get_by_type acl_rule proxy_mode '' $i)
-		local ports=$(uci_get_by_type acl_rule ports '' $i)
-		if [ -z "$mode" ]; then
-			break
-		fi
-		if [ -n "$ip" ] || [ -n "$ports" ]; then
-			iptables -t nat -A SHADOWSOCKS $(factor $ip "-s") $(factor $ports "-p tcp -m multiport --dport") -$(get_jump_mode $mode) $(get_action_chain $mode)
-			if [ "$mode" == "gamemode" ]; then
-				iptables -t mangle -A SHADOWSOCKS $(factor $ip "-s") $(factor $ports "-p tcp -m multiport --dport") -$(get_jump_mode $mode) $(get_action_chain $mode)
-			fi
-		fi
-	done
-	#  加载默认代理模式
-	iptables -t nat -A SHADOWSOCKS -j $(get_action_chain $PROXY_MODE)
-	if [ "$PROXY_MODE" == "gamemode" ]; then
-		iptables -t mangle -A SHADOWSOCKS -j $(get_action_chain $PROXY_MODE)
-	fi
-}
-
-del_rule() {
-	iptables -t nat -D PREROUTING -j SHADOWSOCKS 2>/dev/null
-	iptables -t nat -F SHADOWSOCKS 2>/dev/null && iptables -t nat -X SHADOWSOCKS 2>/dev/null
-	iptables -t nat -F SHADOWSOCKS_GLO 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GLO 2>/dev/null
-	iptables -t nat -F SHADOWSOCKS_GFW 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GFW 2>/dev/null
-	iptables -t nat -F SHADOWSOCKS_CHN 2>/dev/null && iptables -t nat -X SHADOWSOCKS_CHN 2>/dev/null
-	iptables -t nat -F SHADOWSOCKS_GAM 2>/dev/null && iptables -t nat -X SHADOWSOCKS_GAM 2>/dev/null
-	iptables -t mangle -D PREROUTING -j SHADOWSOCKS 2>/dev/null
-	iptables -t mangle -F SHADOWSOCKS 2>/dev/null && iptables -t mangle -X SHADOWSOCKS 2>/dev/null
-	iptables -t mangle -F SHADOWSOCKS_GAM 2>/dev/null && iptables -t mangle -X SHADOWSOCKS_GAM 2>/dev/null
-	ip rule del fwmark 0x01/0x01 table 100 2>/dev/null
-	ip route del local 0.0.0.0/0 table 100 2>/dev/null
 }
 
 start() {
-	! load_config && exit 0
-	#避免重复开启服务
-	iptables -t nat -C PREROUTING -j SHADOWSOCKS 2>/dev/null;
+	load_config
 	if [ $? -eq 0 ]; then
-		del_rule
+		start_redir
+		start_dns
+		set_ss_nat
 	fi
-	start_redir
-	start_dns
-	add_rule
 }
 
 stop() {
-	del_rule
+	/usr/bin/ss-rules -f
 	killall -q -9 ss-redir 2>/dev/null
 	killall -q -9 ss-tunnel 2>/dev/null
 	killall -q -9 pdnsd 2>/dev/null
 	killall -q -9 dnscrypt-proxy2 2>/dev/null
-	if test -f $PID_FILE; then
-		rm -rf $PID_FILE;
-	fi	
 }
 
 restart() {
 	stop
+	sleep 1
 	start
 }

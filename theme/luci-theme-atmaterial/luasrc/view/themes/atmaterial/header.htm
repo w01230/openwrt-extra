@@ -19,13 +19,16 @@
 -%>
 
 <%
+	local ver = require "luci.version"
 	local sys  = require "luci.sys"
 	local util = require "luci.util"
 	local http = require "luci.http"
 	local disp = require "luci.dispatcher"
 
 	local boardinfo = util.ubus("system", "board")
-
+	local boardinfo={}
+	boardinfo.hostname=sys.hostname()
+	
 	local request  = disp.context.path
 	local request2 = disp.context.request
 
@@ -135,7 +138,7 @@
 					local title = pcdata(striptags(translate(nnode.title)))
 
 					write('<li class="slide"><a class="menu" data-title="%s" href="#">%s</a>' %{
-						title,
+						pcdata(striptags(nnode.title)),
 						title
 					})
 
@@ -145,7 +148,7 @@
 					local title = pcdata(striptags(translate(nnode.title)))
 
 					write('<li><a data-title="%s" href="%s">%s</a></li>' %{
-						title,
+						pcdata(striptags(nnode.title)),
 						nodeurl(category, r, nnode.query),
 						title
 					})
@@ -170,7 +173,7 @@
 			end
 
 			if ucichanges > 0 then
-				write('<a class="uci_change_indicator label notice" href="%s?redir=%s">%s: %d</a>' %{
+				write('<a class="label notice" href="%s?redir=%s">%s: %d</a>' %{
 					url(category, 'uci/changes'),
 					http.urlencode(http.formvalue('redir') or table.concat(disp.context.request, "/")),
 					translate('Unsaved Changes'),

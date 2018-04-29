@@ -457,6 +457,10 @@ header > .container > a[class="brand"]:after {
     content: "\e023";
 }
 
+.main > .main-left > .nav > .slide > a[data-title="Statistics"]:before {
+    content: "\e00f";
+}
+
 .main > .main-left > .nav > .slide > a[data-title="Bandwidth Monitor"]:before {
     content: "\e00f";
 }

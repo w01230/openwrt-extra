@@ -35,7 +35,7 @@ define Package/shadowsocks/Default
 	CATEGORY:=Extra packages
 	TITLE:=Lightweight Secured Socks5 Proxy
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
-	DEPENDS:=+zlib +libev +libcares +libpcre +libpthread +libsodium +libmbedtls +libustream-mbedtls +haveged +ipset +ip-full +iptables +iptables-mod-tproxy +iptables-mod-extra
+	DEPENDS:=+zlib +libev +libcares +libpcre +libsodium +libmbedtls +ipset +ip-full +iptables +iptables-mod-tproxy +iptables-mod-extra
 
 endef
 
@@ -48,15 +48,16 @@ endef
 CONFIGURE_ARGS += --disable-ssp --disable-documentation --disable-assert
 
 define Package/shadowsocks/install
-	$(shell./files/gfwlist2dnsmasq.sh -s gfw -o ./files/common/dnsmasq.d/gfwlist.conf)
-	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/usr/share/shadowsocks $(1)/etc/config $(1)/etc
+	$(shell./files/gfwlist2dnsmasq.sh -s gfwlist -o ./files/common/dnsmasq.d/gfwlist.conf)
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/shadowsocks $(1)/etc/config $(1)/etc
 	$(CP) ./files/common/* $(1)/etc/
 	$(CP) ./files/dnsmasq.conf $(TOPDIR)/package/network/services/dnsmasq/files/dnsmasq.conf
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ss-{redir,tunnel,local} $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/ss-rules $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/shadowsocks.init $(1)/etc/init.d/shadowsocks
 	$(INSTALL_DATA) ./files/shadowsocks.defaults $(1)/etc/uci-defaults/96-shadowsocks
-	$(INSTALL_DATA) ./files/shadowsocks.firewall $(1)/usr/share/shadowsocks/firewall.include
-	$(INSTALL_DATA) ./files/chnroute.* $(1)/usr/share/shadowsocks/
+	$(INSTALL_DATA) ./files/shadowsocks.firewall $(1)/etc/shadowsocks/firewall.include
+	$(INSTALL_DATA) ./files/chnroute.* $(1)/etc/shadowsocks/
 	$(INSTALL_DATA) ./files/shadowsocks.config $(1)/etc/config/shadowsocks
 endef
 
