@@ -14,7 +14,6 @@ if [ "$md5sum3"x = "$md5sum4"x ];then
 	echo chnroute same md5!
 else
 	echo update chnroute!
-	sed -i "2c `date +%Y-%m-%d` # $md5sum3 chnroute" ../version1
 fi
 echo =================
 # ======================================
@@ -23,7 +22,7 @@ echo =================
 wget -4 https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf
 
 cat accelerated-domains.china.conf | sed "s/server=\/\.//g" | sed "s/server=\///g" | sed -r "s/\/\S{1,30}//g" | sed -r "s/\/\S{1,30}//g" > cdn_download.txt
-cat cdn_koolshare.txt cdn_download.txt | sort -u > cdn1.txt
+cat cdn_download.txt | sort -u > cdn1.txt
 
 md5sum5=$(md5sum cdn1.txt | sed 's/ /\n/g'| sed -n 1p)
 md5sum6=$(md5sum cdn.txt | sed 's/ /\n/g'| sed -n 1p)
@@ -33,8 +32,6 @@ if [ "$md5sum5"x = "$md5sum6"x ];then
 	echo cdn list same md5!
 else
 	echo update cdn!
-	cp -f cdn1.txt ../cdn.txt
-	sed -i "4c `date +%Y-%m-%d` # $md5sum5 cdn" ../version1
 fi
 echo =================
 # ======================================
@@ -62,7 +59,6 @@ if [ "$md5sum9"x = "$md5sum10"x ];then
 	echo Routing same md5!
 else
 	echo update Routing!
-	sed -i "5c `date +%Y-%m-%d` # $md5sum9 Routing" ../version1
 fi
 echo =================
 # ======================================
@@ -85,7 +81,6 @@ if [ "$md5sum7"x = "$md5sum8"x ];then
 	echo WhiteList same md5!
 else
 	echo update WhiteList!
-	sed -i "6c `date +%Y-%m-%d` # $md5sum7 WhiteList" ../version1
 fi
 echo =================
 
@@ -113,14 +108,12 @@ if [ "$md5sum11"x = "$md5sum12"x ];then
 	echo WhiteList_new same md5!
 else
 	echo update WhiteList_new!
-	cp WhiteList_new.txt ..
-	sed -i "7c `date +%Y-%m-%d` # $md5sum11 WhiteList_new" ../version1
 fi
 echo =================
 
 # ======================================
 rm -rf google.china.conf
 rm -rf apple.china.conf
-rm gfwlist1.conf gfwlist_download.conf chnroute1.txt
-rm cdn1.txt accelerated-domains.china.conf cdn_download.txt
+rm gfwlist_download.conf
+rm accelerated-domains.china.conf cdn_download.txt
 rm WhiteList.txt WhiteList_tmp.txt apnic.txt WhiteList_new.txt Routing.txt
