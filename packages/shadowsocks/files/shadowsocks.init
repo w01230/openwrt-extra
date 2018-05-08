@@ -113,8 +113,6 @@ set_ss_nat() {
 	;;
 	gfwlist)
 		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -b 0.0.0.0/1 128.0.0.0/1 -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS -I br-lan
-		ipset create gfwlist hash:ip
-		iptables -t nat -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
 	;;
 	chnroute)
 		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -B /etc/shadowsocks/chnroute.txt -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS	-I br-lan
