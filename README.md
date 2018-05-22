@@ -7,7 +7,7 @@
 	2) select app and make
 
 ## bug:
-	upx compressed binary file(adbyby koolproxy dnscrypt-proxy2) is not put into firmware, if do this
+	upx compressed binary file(koolproxy) is not put into firmware, if do this
 	the binary file will be broken. It needs to copy into openwrt manually via ssh or samba. 	
 ## Thanks:
      Thanks for [crwnet](httttps://github.com/crwnet), [shadowsocks](https://github.com/shadowsocks) etc.
