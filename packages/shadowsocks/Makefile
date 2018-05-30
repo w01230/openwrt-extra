@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=shadowsocks
-PKG_VERSION:=3.1.3
+PKG_VERSION:=3.2.0
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev.git
-PKG_SOURCE_VERSION:=85a64ae8360759aa59ebe3061c092c9a2054d078
+PKG_SOURCE_VERSION:=8c98bdecac22b5de7637f82c5db458fd57798a68
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION)
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
 
@@ -35,7 +35,7 @@ define Package/shadowsocks/Default
 	CATEGORY:=Extra packages
 	TITLE:=Lightweight Secured Socks5 Proxy
 	URL:=https://github.com/shadowsocks/shadowsocks-libev
-	DEPENDS:=+zlib +libev +libcares +libpcre +libsodium +libmbedtls +ipset +ip-full +iptables +iptables-mod-tproxy +iptables-mod-extra
+	DEPENDS:=+zlib +libev +libcares +libpcre +libsodium +libmbedtls +ipset +iptables +iptables-mod-tproxy +iptables-mod-extra
 
 endef
 
