@@ -1,14 +1,14 @@
-From c800ff1874310c6b17327fa4002d0d570f515244 Mon Sep 17 00:00:00 2001
+From 464cd8fd6872b2bff3db7c229193e113b744e9a5 Mon Sep 17 00:00:00 2001
 From: w01230 <4585006@gmail.com>
-Date: Fri, 27 Apr 2018 20:33:42 +0800
+Date: Mon, 18 Jun 2018 13:23:16 +0800
 Subject: [PATCH] openwrt-customize
 
 ---
  feeds.conf.default                                  |  1 +
  package/base-files/files/bin/config_generate        | 13 ++++++-------
  package/kernel/mac80211/files/lib/wifi/mac80211.sh  |  7 ++++---
- package/network/services/samba36/files/samba.config |  2 +-
- 4 files changed, 12 insertions(+), 11 deletions(-)
+ package/network/services/dnsmasq/files/dnsmasq.conf |  1 +
+ 4 files changed, 12 insertions(+), 10 deletions(-)
 
 diff --git a/feeds.conf.default b/feeds.conf.default
 index da6c665624..71241f911f 100644
@@ -85,17 +85,15 @@ index 511a9188db..8b7169f049 100644
  EOF
  		uci -q commit wireless
  
-diff --git a/package/network/services/samba36/files/samba.config b/package/network/services/samba36/files/samba.config
-index c79db0d322..5f8350dda0 100644
---- a/package/network/services/samba36/files/samba.config
-+++ b/package/network/services/samba36/files/samba.config
-@@ -1,5 +1,5 @@
- config samba
--	option 'name'			'OpenWrt'
-+	option 'name'			'Wolf'
- 	option 'workgroup'		'WORKGROUP'
- 	option 'description'		'OpenWrt'
- 	option 'homes'			'1'
+diff --git a/package/network/services/dnsmasq/files/dnsmasq.conf b/package/network/services/dnsmasq/files/dnsmasq.conf
+index bf5816be56..4f2882731a 100644
+--- a/package/network/services/dnsmasq/files/dnsmasq.conf
++++ b/package/network/services/dnsmasq/files/dnsmasq.conf
+@@ -35,3 +35,4 @@
+ # "bert" another name, bertrand
+ # The fields are <cname>,<target>
+ #cname=bertand,bert
++conf-dir=/etc/dnsmasq.d
 -- 
-2.17.0
+2.17.1
 
