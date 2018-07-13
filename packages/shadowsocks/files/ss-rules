@@ -50,6 +50,9 @@ flush_rules() {
 	for setname in $(ipset -n list | grep "ss_spec"); do
 		ipset destroy $setname 2>/dev/null
 	done
+	for setname in $(ipset -n list | grep "gfwlist"); do
+		ipset destroy $setname 2>/dev/null
+	done
 	FWI=$(uci get firewall.shadowsocks.path 2>/dev/null)
 	[ -n "$FWI" ] && echo '# firewall include file' >$FWI
 	return 0
