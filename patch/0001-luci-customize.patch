@@ -1,0 +1,66 @@
+From 412146df73b3f185f9462546094de0b481f494d8 Mon Sep 17 00:00:00 2001
+From: w01230 <4585006@gmail.com>
+Date: Thu, 9 Aug 2018 16:05:07 +0800
+Subject: [PATCH] luci-customize
+
+---
+ collections/luci-nginx/Makefile        | 2 +-
+ collections/luci-ssl-nginx/Makefile    | 2 +-
+ collections/luci/Makefile              | 2 +-
+ modules/luci-base/root/etc/config/luci | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/collections/luci-nginx/Makefile b/collections/luci-nginx/Makefile
+index 7d14b1d..8024719 100644
+--- a/collections/luci-nginx/Makefile
++++ b/collections/luci-nginx/Makefile
+@@ -12,7 +12,7 @@ LUCI_BASENAME:=nginx
+ LUCI_TITLE:=LuCI interface with Nginx as Webserver
+ LUCI_DESCRIPTION:=Standard OpenWrt set including full admin with ppp support and the default Bootstrap theme
+ LUCI_DEPENDS:= \
+-	+nginx +nginx-mod-luci +luci-mod-admin-full +luci-theme-bootstrap \
++	+nginx +nginx-mod-luci +luci-mod-admin-full +luci-theme-atmaterial \
+ 	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
+ 	+rpcd-mod-rrdns
+ 
+diff --git a/collections/luci-ssl-nginx/Makefile b/collections/luci-ssl-nginx/Makefile
+index 549c44a..a59479b 100644
+--- a/collections/luci-ssl-nginx/Makefile
++++ b/collections/luci-ssl-nginx/Makefile
+@@ -14,7 +14,7 @@ LUCI_DESCRIPTION:=LuCI with OpenSSL as the SSL backend (libustream-openssl). \
+  OpenSSL cmd tools (openssl-util) are used by nginx for SSL key generation. \
+  
+ LUCI_DEPENDS:= \
+-	+nginx-ssl +nginx-mod-luci-ssl +luci-mod-admin-full +luci-theme-bootstrap \
++	+nginx-ssl +nginx-mod-luci-ssl +luci-mod-admin-full +luci-theme-atmaterial \
+ 	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
+ 	+rpcd-mod-rrdns +libustream-openssl +openssl-util
+ 
+diff --git a/collections/luci/Makefile b/collections/luci/Makefile
+index c3174e8..efc000e 100644
+--- a/collections/luci/Makefile
++++ b/collections/luci/Makefile
+@@ -12,7 +12,7 @@ LUCI_BASENAME:=luci
+ LUCI_TITLE:=LuCI interface with Uhttpd as Webserver (default)
+ LUCI_DESCRIPTION:=Standard OpenWrt set including full admin with ppp support and the default Bootstrap theme
+ LUCI_DEPENDS:= \
+-	+uhttpd +luci-mod-admin-full +luci-theme-bootstrap \
++	+uhttpd +luci-mod-admin-full +luci-theme-atmaterial \
+ 	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
+ 	+rpcd-mod-rrdns
+ 
+diff --git a/modules/luci-base/root/etc/config/luci b/modules/luci-base/root/etc/config/luci
+index 82c2230..b88ed20 100644
+--- a/modules/luci-base/root/etc/config/luci
++++ b/modules/luci-base/root/etc/config/luci
+@@ -1,6 +1,6 @@
+ config core main
+ 	option lang auto
+-	option mediaurlbase /luci-static/bootstrap
++	option mediaurlbase /luci-static/atmaterial
+ 	option resourcebase /luci-static/resources
+ 	
+ config extern flash_keep
+-- 
+2.18.0
+
