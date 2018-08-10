@@ -15,7 +15,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define Package/dnscrypt-proxy2
 	SECTION:=net
-	CATEGORY:=Network
+	CATEGORY:=Extra packages
 	TITLE:=A Secure DNS resolver
 	URL:=https://github.com/jedisct1/dnscrypt-proxy
 	DEPENDS:=+ca-bundle
