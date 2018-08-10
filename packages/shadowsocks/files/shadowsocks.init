@@ -85,7 +85,7 @@ start_dns() {
 		-c $CONFIG_FILE $ARG_OTA ${ARG_UDP:="-u"} \
 		-l 5300 \
 		-L $DNS_FORWARD \
-		-f /var/run/ss-tunnel.pid &
+		-f /var/run/ss-tunnel.pid
 	;;
 	pdnsd)
         	if ! test -f "$CACHE"; then
@@ -94,7 +94,7 @@ start_dns() {
 			chown -R nobody.nogroup $CACHEDIR
        		fi
 			
-       		/usr/sbin/pdnsd --daemon -p /var/run/pdnsd.pid &
+       		/usr/sbin/pdnsd --daemon -p /var/run/pdnsd.pid
 	;;
 	dnscrypt-proxy2)
 		/usr/bin/dnscrypt-proxy2 -config /etc/dnscrypt-proxy2/dnscrypt-proxy2.toml &
