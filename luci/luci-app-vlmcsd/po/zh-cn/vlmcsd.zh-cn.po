@@ -9,6 +9,9 @@ msgstr ""
 msgid "KMS Server"
 msgstr "KMS服务器"
 
+msgid "A KMS Serever Emulator to active your Windows or Office"
+msgstr "一个用于激活Windows以及Office的KMS服务器"
+
 msgid "Basic Setting"
 msgstr "基本设置"
 
