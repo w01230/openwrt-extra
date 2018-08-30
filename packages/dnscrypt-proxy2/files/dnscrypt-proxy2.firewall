@@ -1,4 +1,0 @@
-#!/bin/sh
-# dnscrypt_proxy2 integration for firewall3
-
-/etc/init.d/dnscrypt_proxy2 reload
