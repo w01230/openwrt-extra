@@ -190,7 +190,7 @@ input,
 
 select:not([multiple="multiple"]):focus,
 input:focus {
-    border-color: #0099CC;
+    border-color: rgba(204, 18, 30, 0.90);
 }
 
 select[multiple="multiple"] {
@@ -198,7 +198,7 @@ select[multiple="multiple"] {
 }
 
 code {
-    color: #0099CC;
+    color: rgba(204, 18, 30, 0.90);
 }
 
 abbr {
@@ -341,7 +341,7 @@ header > .container > .brand {
     line-height:60px;
     color: white;
     cursor: default;
-    background: #0099CC;
+    background: rgba(204, 18, 30, 0.90);
     display:block;
     width:17rem;
     padding-right: 10px;
@@ -426,8 +426,8 @@ header > .container > a[class="brand"]:after {
     font-size: 14px;
     line-height: 1.42857143;
     color: #fff;
-    background-color: #5bc0de;
-    border-color: #46b8da;
+    background-color: rgba(204, 18, 30, 0.60);
+    border-color: rgba(204, 18, 30, 0.90);
     margin-top: 2rem;
     text-decoration: inherit;
 }
@@ -908,31 +908,6 @@ td > table > tbody > tr > td,
     pointer-events: none;
     opacity: 0.60;
     box-shadow: none;
-}
-
-.cbi-page-actions .cbi-button-apply,
-.cbi-section-actions .cbi-button-edit,
-.cbi-button-edit.important,
-.cbi-button-apply.important,
-.cbi-button-reload.important,
-.cbi-button-action.important {
-    color: #fff;
-    background-color: #337ab7;
-}
-
-.cbi-page-actions .cbi-button-save,
-.cbi-button-add.important,
-.cbi-button-save.important,
-.cbi-button-positive.important {
-    color: #fff;
-    background-color: #5bc0de;
-}
-
-.cbi-button-remove.important,
-.cbi-button-reset.important,
-.cbi-button-negative.important {
-    color: #fff;
-    background-color: #d9534f;
 }
 
 .cbi-button-find,
@@ -1576,7 +1551,7 @@ td > .ifacebadge,
 }
 
 .ifacebox-head.active {
-    background: #90c0e0;
+    background: rgba(220, 217, 217, 0.68);
 }
 
 .ifacebox-body {
@@ -1659,7 +1634,7 @@ td > .ifacebadge,
 
 div.cbi-value var, td.cbi-value-field var, .td.cbi-value-field var {
     font-style: italic;
-    color: #0069D6;
+    color: #76838f;
 }
 
 small {
@@ -1780,7 +1755,7 @@ header > .container > .pull-right > * {
 }
 
 .notice {
-    background-color: #5BC0DE;
+    background-color: rgba(250, 18, 30, 0.60);
 }
 
 .showSide:before {
