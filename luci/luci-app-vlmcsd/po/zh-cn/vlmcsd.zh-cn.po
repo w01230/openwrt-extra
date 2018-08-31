@@ -28,7 +28,7 @@ msgid "Enable"
 msgstr "启用"
 
 msgid "Auto activate"
-msgstr "自动激活局域网客户端"
+msgstr "自动激活"
 
 msgid "This file is /etc/vlmcsd.ini."
 msgstr "这个文件在 /etc/vlmcsd.ini 下，可以增加新的产品主密钥。"
