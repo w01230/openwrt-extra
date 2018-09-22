@@ -116,7 +116,7 @@ start() {
 		start_dns
 		set_ss_nat
 	fi
-	/etc/init.d/dnsmasq start
+	/etc/init.d/dnsmasq restart
 }
 
 stop() {
@@ -124,7 +124,6 @@ stop() {
 	killall -q -9 ss-redir 2>/dev/null
 	killall -q -9 ss-tunnel 2>/dev/null
 	/etc/init.d/unbound stop
-	/etc/init.d/dnsmasq stop
 }
 
 restart() {
