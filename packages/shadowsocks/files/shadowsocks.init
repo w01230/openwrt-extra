@@ -116,6 +116,9 @@ start() {
 		start_dns
 		set_ss_nat
 	fi
+	if [ -z `grep "conf-dir=/etc/dnsmasq.d" /etc/dnsmasq.conf` ]; then
+		sed -i 'conf-dir=/etc/dnsmasq.d /etc/dnsmasq.conf' 
+	fi
 	/etc/init.d/dnsmasq restart
 }
 
