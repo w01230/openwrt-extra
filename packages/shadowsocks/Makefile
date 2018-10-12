@@ -51,7 +51,6 @@ define Package/shadowsocks/install
 	$(shell./files/gfwlist2dnsmasq.sh -s gfwlist -o ./files/common/dnsmasq.d/gfwlist.conf)
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/shadowsocks $(1)/etc/config $(1)/etc
 	$(CP) ./files/common/* $(1)/etc/
-	$(CP) ./files/dnsmasq.conf $(TOPDIR)/package/network/services/dnsmasq/files/dnsmasq.conf
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ss-{redir,tunnel,local} $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/ss-rules $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/shadowsocks.init $(1)/etc/init.d/shadowsocks
