@@ -1067,6 +1067,11 @@ td > table > tbody > tr > td,
     line-height: 1.25;
 }
 
+.cbi-value-field .cbi-input-invalid {
+     border-bottom-color: #f00;
+     color: #f00;
+ }
+
 .cbi-value-helpicon > img {
     display: none;
 }
