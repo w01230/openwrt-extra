@@ -1572,15 +1572,15 @@ td > table > tbody > tr > td,
 	background: #fff;
 }
  .cbi-progressbar > div {
-	background: var(--main-color, #0099CC);
+	background: var(--main-color, #e4eaec);
 	height: 100%;
 	transition: width .25s ease-in;
 	width: 0%;
 }
  .cbi-progressbar::after {
 	position: absolute;
-	bottom: 2px;
-	top: 2px;
+	bottom: 0px;
+	top: 0px;
 	right: 0;
 	left: 0;
 	text-align: center;
