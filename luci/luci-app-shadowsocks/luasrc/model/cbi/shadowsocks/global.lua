@@ -3,7 +3,6 @@ openwrt-dist-luci: ShadowSocks
 ]]--
 
 local ds = require "luci.dispatcher"
-local ipkg = require "luci.model.ipkg"
 local m, s, o
 local shadowsocks = "shadowsocks"
 local uci = luci.model.uci.cursor()
@@ -41,10 +40,6 @@ for _, net in ipairs(nwm:get_networks()) do
 			lan_ifaces[device:name()] = device:get_i18n()
 		end
 	end
-end
-
-function is_installed(name)
-	return ipkg.installed(name)
 end
 
 local server_table = {}
@@ -88,9 +83,6 @@ o = s:option(ListValue, "dns_mode", translate("DNS Forward Mode"))
 o.default = "dns2socks"
 o.rmempty = false
 o:reset_values()
-if is_installed("dns2socks") then
-	o:value("dns2socks", "dns2socks")
-end
 o:value("ss-tunnel", "ss-tunnel")
 o:value("unbound", "unbound")
 
