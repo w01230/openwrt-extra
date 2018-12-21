@@ -846,8 +846,8 @@ div > .table > .tbody > .tr:nth-of-type(even) {
 }
 .cbi-progressbar::after {
     position: absolute;
-    bottom: 2px;
-    top: 2px;
+    bottom: 0px;
+    top: 0px;
     right: 0;
     left: 0;
     text-align: center;
