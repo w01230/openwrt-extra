@@ -1,6 +1,6 @@
-From 412146df73b3f185f9462546094de0b481f494d8 Mon Sep 17 00:00:00 2001
+From 0ac5c05332befc5e10eded872360771a60b90c6c Mon Sep 17 00:00:00 2001
 From: w01230 <4585006@gmail.com>
-Date: Thu, 9 Aug 2018 16:05:07 +0800
+Date: Fri, 21 Dec 2018 18:21:03 +0800
 Subject: [PATCH] luci-customize
 
 ---
@@ -24,7 +24,7 @@ index 7d14b1d..8024719 100644
  	+rpcd-mod-rrdns
  
 diff --git a/collections/luci-ssl-nginx/Makefile b/collections/luci-ssl-nginx/Makefile
-index 549c44a..a59479b 100644
+index facae6d..4b885b2 100644
 --- a/collections/luci-ssl-nginx/Makefile
 +++ b/collections/luci-ssl-nginx/Makefile
 @@ -14,7 +14,7 @@ LUCI_DESCRIPTION:=LuCI with OpenSSL as the SSL backend (libustream-openssl). \
@@ -34,10 +34,10 @@ index 549c44a..a59479b 100644
 -	+nginx-ssl +nginx-mod-luci-ssl +luci-mod-admin-full +luci-theme-bootstrap \
 +	+nginx-ssl +nginx-mod-luci-ssl +luci-mod-admin-full +luci-theme-atmaterial \
  	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
- 	+rpcd-mod-rrdns +libustream-openssl +openssl-util
+ 	+rpcd-mod-rrdns +openssl-util
  
 diff --git a/collections/luci/Makefile b/collections/luci/Makefile
-index c3174e8..efc000e 100644
+index 739eb51..a58422d 100644
 --- a/collections/luci/Makefile
 +++ b/collections/luci/Makefile
 @@ -12,7 +12,7 @@ LUCI_BASENAME:=luci
@@ -46,7 +46,7 @@ index c3174e8..efc000e 100644
  LUCI_DEPENDS:= \
 -	+uhttpd +luci-mod-admin-full +luci-theme-bootstrap \
 +	+uhttpd +luci-mod-admin-full +luci-theme-atmaterial \
- 	+luci-app-firewall +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
+ 	+luci-app-firewall +luci-app-opkg +luci-proto-ppp +libiwinfo-lua +IPV6:luci-proto-ipv6 \
  	+rpcd-mod-rrdns
  
 diff --git a/modules/luci-base/root/etc/config/luci b/modules/luci-base/root/etc/config/luci
@@ -62,5 +62,5 @@ index 82c2230..b88ed20 100644
  	
  config extern flash_keep
 -- 
-2.18.0
+2.20.0
 
