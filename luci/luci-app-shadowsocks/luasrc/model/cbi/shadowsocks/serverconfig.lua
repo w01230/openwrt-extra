@@ -4,7 +4,6 @@ openwrt-dist-luci: ShadowSocks
 
 local shadowsocks = "shadowsocks"
 local ds = require "luci.dispatcher"
-local ipkg = require("luci.model.ipkg")
 local m, s, o
 
 local encrypt_methods = {
