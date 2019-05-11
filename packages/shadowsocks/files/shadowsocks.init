@@ -101,7 +101,7 @@ set_ss_nat() {
 		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -d SS_SPEC_WAN_FW -o -a $LAN_HOSTS -I br-lan
 	;;
 	gfwlist)
-		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -b 0.0.0.0/1 128.0.0.0/1 -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS -I br-lan
+		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -b "0.0.0.0/1 128.0.0.0/1" -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS -I br-lan
 	;;
 	chnroute)
 		/usr/bin/ss-rules -s $SERVER -l $LOCAL_PORT -B /etc/shadowsocks/chnroute.txt -d SS_SPEC_WAN_AC -o -a $LAN_HOSTS	-I br-lan
