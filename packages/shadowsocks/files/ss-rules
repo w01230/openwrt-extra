@@ -82,7 +82,7 @@ gfwlist_init() {
         ipset create gfwlist hash:ip
     fi
     iptables -t nat -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
-    iptables -t mangle -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
+#    iptables -t mangle -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
     return 0
 }
 
