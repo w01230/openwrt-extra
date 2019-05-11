@@ -77,12 +77,12 @@ EOF
 }
 
 gfwlist_init() {
-    ipt="iptables -t nat"
     setname=$(ipset -n list | grep -w "gfwlist")
     if [ ! "$setname" ]; then
         ipset create gfwlist hash:ip
     fi
-    $ipt -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
+    iptables -t nat -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
+    iptables -t mangle -I SS_SPEC_WAN_AC 1 -m set --match-set gfwlist dst -j SS_SPEC_WAN_FW
     return 0
 }
 
