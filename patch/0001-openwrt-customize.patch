@@ -66,7 +66,7 @@ index 511a9188db..8b7169f049 100644
 -			set wireless.default_radio${devidx}.ssid=OpenWrt
 -			set wireless.default_radio${devidx}.encryption=none
 +			set wireless.default_radio${devidx}.ssid=Wolf
-+			set wireless.default_radio${devidx}.encryption=psk2
++			set wireless.default_radio${devidx}.encryption=psk2+auto
 +			set wireless.default_radio${devidx}.key=00000000
  EOF
  		uci -q commit wireless
