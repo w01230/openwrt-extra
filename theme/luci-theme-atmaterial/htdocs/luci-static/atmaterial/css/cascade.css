@@ -711,6 +711,12 @@ display: inline-block;
     -webkit-overflow-scrolling: touch;
 }
 
+.cbi-modal .cbi-section,
+.cbi-section .cbi-section {
+    padding: 0;
+    box-shadow: none;
+}
+
 .cbi-map-descr + fieldset {
     margin-top: 1rem;
 }
@@ -737,6 +743,15 @@ cbi-section > fieldset {
     padding-bottom: 10px;
     /*border-bottom: 1px solid #e4eaec;*/
     margin: 0;
+}
+
+.cbi-section > h3:first-child,
+.cbi-section > h4:first-child,
+.cbi-section > p:first-child,
+[data-tab-title] > h3:first-child,
+[data-tab-title] > h4:first-child,
+[data-tab-title] > p:first-child {
+    padding-top: 1rem;
 }
 
 table {
@@ -1034,12 +1049,15 @@ td > table > tbody > tr > td,
 	height: 0;
 	opacity: 0;
 	overflow: hidden;
+	margin: 0;
+	padding: 0rem 1rem !important;
 }
  [data-tab-active="true"] {
 	opacity: 1;
 	height: auto;
 	overflow: visible;
 	transition: opacity .25s ease-in;
+	margin: inherit !important;
 }
 
 .cbi-section-remove:nth-of-type(2n),
@@ -1463,6 +1481,12 @@ td > table > tbody > tr > td,
 	line-height: normal;
 	margin-bottom: .5em;
 }
+
+.modal.cbi-modal {
+ 	max-width: 90%;
+ 	max-height: none;
+}
+
  .modal > pre,
 .modal > textarea {
 	white-space: pre-wrap;
