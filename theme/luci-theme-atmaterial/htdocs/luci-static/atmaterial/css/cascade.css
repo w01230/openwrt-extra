@@ -814,6 +814,28 @@ table > tbody > tr:nth-of-type(n + 2) > td,
     border: 1px solid #eee;
 }
 
+tr > td,
+tr > th,
+.tr > .td,
+.tr > .th,
+.cbi-section-table-row::before,
+#cbi-wireless > #wifi_assoclist_table > .tr:nth-child(2) {
+	border-top: thin solid #ddd;
+}
+
+#cbi-wireless .td,
+#cbi-network .tr:first-child > .td,
+.table[width="100%"] > .tr:first-child > .td,
+[data-page="admin-network-diagnostics"] .tr > .td,
+.tr.table-titles > .th,
+.tr.cbi-section-table-titles > .th {
+	border-top: 0 !important;
+}
+
+.table[width="100%"] > .tr:first-child > .td {
+	margin: auto 0;
+}
+
 .cbi-section-table-row {
     text-align: center;
     margin-bottom: 1rem;
@@ -2153,6 +2175,30 @@ label > input[type="radio"] {
     margin-right:0 !important;
 }
 
+/* wireless overview */
+#cbi-wireless > #wifi_assoclist_table > .tr {
+	box-shadow: inset 1px -1px 0 #ddd, inset -1px -1px 0 #ddd;
+}
+
+#cbi-wireless > #wifi_assoclist_table > .tr.placeholder > .td {
+	right: 33px;
+	bottom: 33px;
+	left: 33px;
+	border-top: thin solid #ddd !important;
+}
+
+#cbi-wireless > #wifi_assoclist_table > .tr.table-titles {
+	box-shadow: inset 1px 0 0 #ddd, inset -1px 0 0 #ddd;
+}
+
+#cbi-wireless > #wifi_assoclist_table > .tr.table-titles > .th {
+	border-bottom: thin solid #ddd;
+	box-shadow: 0 -1px 0 0 #ddd;
+}
+
+#wifi_assoclist_table > .tr > .td[data-title="RX Rate / TX Rate"] {
+	width: 23rem;
+}
 /* fix system reboot */
 
 .node-system-reboot > .main > .main-right p,
