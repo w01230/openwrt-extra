@@ -78,8 +78,8 @@ msgid ""
 msgstr "上传速度(kbit/s)(0-无限制)"
 
 #: usr/lib/lua/luci/model/cbi/sqm.lua:78
-msgid "Create log file for this SQM instance under /var/run/sqm/${Interface_name}.debug.log. Make sure to delete log files manually."
-msgstr "创建日志文件(/var/run/sqm/*.debug.log)"
+msgid "Create log file for this SQM instance under /var/run/sqm/${Interface_name}.[start|stop]-sqm.log."
+msgstr "创建日志文件(/var/run/sqm/*.[start|stop]-sqm.log)"
 
 #: usr/lib/lua/luci/model/cbi/sqm.lua:82
 msgid "Verbosity of SQM's output into the system log."
