@@ -924,7 +924,10 @@ td > table > tbody > tr > td,
 .cbi-button:active,
 .cbi-page-actions .cbi-button-apply + .cbi-button-save:hover,
 .cbi-page-actions .cbi-button-apply + .cbi-button-save:focus,
-.cbi-page-actions .cbi-button-apply + .cbi-button-save:active {
+.cbi-page-actions .cbi-button-apply + .cbi-button-save:active,
+.cbi-page-actions .cbi-button-negative + .cbi-button-save:hover,
+.cbi-page-actions .cbi-button-negative + .cbi-button-save:focus,
+.cbi-page-actions .cbi-button-negative + .cbi-button-save:active{
     outline: 0;
     text-decoration: none;
     background-color: rgba(250, 250, 250, 0.7);
@@ -971,7 +974,8 @@ td > table > tbody > tr > td,
 .cbi-page-actions .cbi-button-apply + .cbi-button-save,
 .cbi-button-add,
 .cbi-button-save,
-.cbi-button-positive {
+.cbi-button-positive,
+.cbi-button-negative {
     color: #46b8da;
     border: 1px solid #46b8da;
     background-color: transparent;
