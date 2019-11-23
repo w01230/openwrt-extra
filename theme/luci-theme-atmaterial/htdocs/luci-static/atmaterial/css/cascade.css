@@ -169,9 +169,17 @@ select {
     border: 1px solid #ccc;
 }
 
-select,
-input,
-.cbi-dropdown {
+.cbi-dropdown {                                         
+    display: inline-flex !important;                    
+    cursor: pointer;                
+    height: auto;                   
+    position: relative;              
+    padding: 0 !important;          
+}                                                      
+                                                                    
+select,                                                             
+input,                                                              
+.cbi-dropdown:not(.btn):not(.cbi-button) {
     color: #76838f;
     padding: 0;
     margin: 0;
