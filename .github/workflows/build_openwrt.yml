@@ -1,6 +1,11 @@
 name: Build Openwrt
 
-on: [push]
+on: 
+  push:
+    branches: 
+      - master
+    paths:
+      - '.config'
 
 jobs:
   build:
@@ -20,6 +25,7 @@ jobs:
 
     - name: Customize
       run: |
+        [ -e .config ] && mv .config openwrt/.config
         cd openwrt
         git config --global user.email "4585006@gmail.com"
         git config --global user.name "w01230"
@@ -37,5 +43,11 @@ jobs:
         cd openwrt
         make -j$(nproc)
 
+    - name: Upload firmware
+      uses: actions/upload-artifact@master
+      if: always()
+      with:
+        name: OpenWrt firmware
+        path: openwrt/bin/targets
 
 
