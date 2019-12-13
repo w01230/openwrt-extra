@@ -30,7 +30,7 @@ jobs:
         git am ../extra/patch/0001-luci-customize.patch
         cd ../../
         ./scripts/feeds install -a
-        mv ../config openwrt/.config
+        mv ../config .config
         make defconfig
 
     - name: Build
