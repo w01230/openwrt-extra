@@ -1,11 +1,6 @@
 name: Build Openwrt
 
-on: 
-  push:
-    branches: 
-      - master
-    paths:
-      - 'config'
+on: [push]
 
 jobs:
   build:
