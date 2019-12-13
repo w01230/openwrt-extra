@@ -20,7 +20,6 @@ jobs:
 
     - name: Customize
       run: |
-        mv config openwrt/.config
         cd openwrt
         git config --global user.email "4585006@gmail.com"
         git config --global user.name "w01230"
@@ -31,6 +30,7 @@ jobs:
         git am ../extra/patch/0001-luci-customize.patch
         cd ../../
         ./scripts/feeds install -a
+        mv config openwrt/.config
         make defconfig
 
     - name: Build
