@@ -22,12 +22,12 @@ jobs:
       run: |
         cd openwrt
         echo "src extra https://github.com/w01230/openwrt-extra.git" > feeds.conf.default
-        ./scripts/feed update -a
+        ./scripts/feeds update -a
         git am feeds/extra/patch/0001-openwrt-customize.patch
         cd feeds/luci
         git am ../extra/patch/0001-luci-customize.patch
         cd ../../
-        ./scripts/feed install -a
+        ./scripts/feeds install -a
         make defconfig
 
     - name: Build
