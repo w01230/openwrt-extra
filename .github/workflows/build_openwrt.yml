@@ -21,7 +21,7 @@ jobs:
     - name: Customize
       run: |
         cd openwrt
-        echo "src extra https://github.com/w01230/openwrt-extra.git" > feeds.conf.default
+        echo "src-git extra https://github.com/w01230/openwrt-extra.git" >> feeds.conf.default
         ./scripts/feeds update -a
         git am feeds/extra/patch/0001-openwrt-customize.patch
         cd feeds/luci
