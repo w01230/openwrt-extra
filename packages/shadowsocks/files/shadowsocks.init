@@ -77,7 +77,6 @@ start_redir() {
 }
 
 start_dns() {
-	/etc/init.d/unbound disable
 	case "$DNS_MODE" in
 	ss-tunnel)
 		/usr/bin/ss-tunnel \
@@ -91,7 +90,17 @@ start_dns() {
 	;;
 	esac
 }
-
+stop_dns {
+	case "$DNS_MODE" in
+	ss-tunnel)
+		/etc/init.d/unbound disable 2>/dev/null
+		/etc/init.d/unbound stop 2>/dev/null
+	;;
+	unbound)
+		killall -q -9 ss-tunnel 2>/dev/null
+	;;
+	esac
+}
 set_ss_nat() {
 	LAN_HOSTS="$(config_foreach get_lan_hosts lan_hosts)"
 	case "$PROXY_MODE" in
@@ -113,6 +122,7 @@ set_ss_nat() {
 start() {
 	load_config
 	if [ $? -eq 0 ]; then
+		stop_dns
 		start_redir
 		start_dns
 		set_ss_nat
