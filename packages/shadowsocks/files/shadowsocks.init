@@ -90,7 +90,7 @@ start_dns() {
 	;;
 	esac
 }
-stop_dns {
+stop_dns() {
 	case "$DNS_MODE" in
 	ss-tunnel)
 		/etc/init.d/unbound disable 2>/dev/null
