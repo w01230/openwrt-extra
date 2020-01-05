@@ -10,5 +10,6 @@
 	upx compressed binary file(koolproxy) is not put into firmware, if do this
 	the binary file will be broken. It needs to copy into openwrt manually via ssh or samba. 
 	disable unbount when boot up device fisrt time.
+
 ## Thanks:
      Thanks for[shadowsocks](https://github.com/shadowsocks) etc.
