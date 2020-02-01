@@ -513,7 +513,7 @@ header > .container > a[class="brand"]:after {
     content: "\e00f";
 }
 
-.main > .main-left > .nav > .slide > a[data-title="bandwidth monitor"]:before {
+.main > .main-left > .nav > .slide > a[data-title="nlbw"]:before {
     content: "\e00f";
 }
 
