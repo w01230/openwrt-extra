@@ -1,4 +1,4 @@
-# Some extra packages for OpenWrt/LEDE
+# Some extra packages for OpenWrt
 
 ## usage:
 
@@ -6,10 +6,8 @@
 	1) run ./script/feeds update -a then ./script/feeds install -a
 	2) select app and make
 
-## bug:
-	upx compressed binary file(koolproxy) is not put into firmware, if do this
-	the binary file will be broken. It needs to copy into openwrt manually via ssh or samba. 
-	disable unbount when boot up device fisrt time.
+## note:
+	remove adbyby and koolproxy from master branch, and keep them in branch:backup.
 
 ## Thanks:
      Thanks for[shadowsocks](https://github.com/shadowsocks) etc.
