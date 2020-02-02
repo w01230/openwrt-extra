@@ -774,7 +774,6 @@ table > tbody > tr > td,
     display: table-cell;     
     text-align: center;      
     vertical-align: middle;
-    white-space: nowrap;
 }
 
 table > tr:nth-of-type(n + 2) > td, 
