@@ -2,7 +2,7 @@
 
 ## usage:
 
-	0) clone to dire openwrt/package
+	0) clone to openwrt/package
 	1) select app and make
 
 ## note:
