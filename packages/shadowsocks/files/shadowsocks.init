@@ -131,8 +131,6 @@ start() {
 		sed -i '$a conf-dir=/etc/dnsmasq.d' /etc/dnsmasq.conf 
 	fi
 	/etc/init.d/dnsmasq restart
-	/etc/init.d/firewall restart
-}
 }
 
 stop() {
@@ -140,7 +138,6 @@ stop() {
 	killall -q -9 ss-redir 2>/dev/null
 	killall -q -9 ss-tunnel 2>/dev/null
 	/etc/init.d/unbound stop 2>/dev/null
-	/etc/init.d/firewall restart
 }
 
 restart() {
