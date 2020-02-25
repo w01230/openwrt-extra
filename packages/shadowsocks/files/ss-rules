@@ -42,7 +42,7 @@ loger() {
 }
 
 flush_rules() {
-	iptables-save -c | grep -v "SS_SPEC" | iptables-restore -c
+#	iptables-save -c | grep -v "SS_SPEC" | iptables-restore -c
 	if command -v ip >/dev/null 2>&1; then
 		ip rule del fwmark 1 lookup 100 2>/dev/null
 		ip route del local default dev lo table 100 2>/dev/null
@@ -53,8 +53,8 @@ flush_rules() {
 	for setname in $(ipset -n list | grep "gfwlist"); do
 		ipset destroy $setname 2>/dev/null
 	done
-	FWI=$(uci get firewall.shadowsocks.path 2>/dev/null)
-	[ -n "$FWI" ] && echo '# firewall include file' >$FWI
+#	FWI=$(uci get firewall.shadowsocks.path 2>/dev/null)
+#	[ -n "$FWI" ] && echo '# firewall include file' >$FWI
 	return 0
 }
 
@@ -119,14 +119,14 @@ ipt_mangle() {
 }
 
 export_ipt_rules() {
-	[ -n "$FWI" ] || return 0
-	cat <<-CAT >>$FWI
-	iptables-save -c | grep -v "SS_SPEC" | iptables-restore -c
-	iptables-restore -n <<-EOF
-	$(iptables-save | grep -E "SS_SPEC|^\*|^COMMIT" |\
-			sed -e "s/^-A \(OUTPUT\|PREROUTING\)/-I \1 1/")
-	EOF
-CAT
+#	[ -n "$FWI" ] || return 0
+#	cat <<-CAT >>$FWI
+#	iptables-save -c | grep -v "SS_SPEC" | iptables-restore -c
+#	iptables-restore -n <<-EOF
+#	$(iptables-save | grep -E "SS_SPEC|^\*|^COMMIT" |\
+#			sed -e "s/^-A \(OUTPUT\|PREROUTING\)/-I \1 1/")
+#	EOF
+#CAT
 	return $?
 }
 
