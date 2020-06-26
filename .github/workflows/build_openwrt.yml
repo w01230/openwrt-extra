@@ -33,13 +33,12 @@ jobs:
         cd openwrt
         git config --global user.email "4585006@gmail.com"
         git config --global user.name "w01230"
-        echo "src-git extra https://github.com/w01230/openwrt-extra.git" >> feeds.conf.default
+        cd package
+        git clone https://github.com/w01230/openwrt-extra.git extra
+        cd -
         ./scripts/feeds update -a
-        git am feeds/extra/patch/0001-openwrt-customize.patch
-        cd feeds/luci
-        git am ../extra/patch/0001-luci-customize.patch
-        cd ../../
         ./scripts/feeds install -a
+        cd -
         mv ../config .config
         make defconfig
 
