@@ -38,8 +38,7 @@ jobs:
         cd -
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-        cd -
-        mv ../config .config
+        mv package/extra/config .config
         make defconfig
 
     - name: Build
