@@ -1,7 +1,7 @@
-From 14c09a85d36d3c9987f1f2963b16e51ad25d00e1 Mon Sep 17 00:00:00 2001
-From: 01230 <4585006@GMAIL.COM>
-Date: Sat, 1 Feb 2020 11:30:24 +0000
-Subject: [PATCH] openwrt-customise
+From 285c607db0a6b1eee5d522d780b13a05b7475842 Mon Sep 17 00:00:00 2001
+From: w01230 <4585006@gmail.com>
+Date: Sat, 30 Jan 2021 12:01:25 +0800
+Subject: [PATCH] openwrt customize
 
 ---
  package/base-files/files/bin/config_generate       | 8 +++-----
@@ -9,10 +9,10 @@ Subject: [PATCH] openwrt-customise
  2 files changed, 4 insertions(+), 6 deletions(-)
 
 diff --git a/package/base-files/files/bin/config_generate b/package/base-files/files/bin/config_generate
-index 3bf48d7216..2922ed6929 100755
+index ee3958e733..341dcd6e2b 100755
 --- a/package/base-files/files/bin/config_generate
 +++ b/package/base-files/files/bin/config_generate
-@@ -100,11 +100,11 @@ generate_network() {
+@@ -140,11 +140,11 @@ generate_network() {
  		static)
  			local ipad
  			case "$1" in
@@ -27,7 +27,7 @@ index 3bf48d7216..2922ed6929 100755
  
  			uci -q batch <<-EOF
  				set network.$1.proto='static'
-@@ -253,8 +253,6 @@ generate_static_system() {
+@@ -292,8 +292,6 @@ generate_static_system() {
  		set system.ntp.enable_server='0'
  		add_list system.ntp.server='0.openwrt.pool.ntp.org'
  		add_list system.ntp.server='1.openwrt.pool.ntp.org'
@@ -37,10 +37,10 @@ index 3bf48d7216..2922ed6929 100755
  
  	if json_is_a system object; then
 diff --git a/package/kernel/mac80211/files/lib/wifi/mac80211.sh b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
-index be9c537926..cc3152ae4f 100644
+index 3e99f06693..e8a6136e16 100644
 --- a/package/kernel/mac80211/files/lib/wifi/mac80211.sh
 +++ b/package/kernel/mac80211/files/lib/wifi/mac80211.sh
-@@ -104,7 +104,7 @@ detect_mac80211() {
+@@ -110,7 +110,7 @@ detect_mac80211() {
  			set wireless.radio${devidx}.hwmode=11${mode_band}
  			${dev_id}
  			${ht_capab}
@@ -50,5 +50,5 @@ index be9c537926..cc3152ae4f 100644
  			set wireless.default_radio${devidx}=wifi-iface
  			set wireless.default_radio${devidx}.device=radio${devidx}
 -- 
-2.20.1
+2.30.0
 
