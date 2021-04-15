@@ -84,7 +84,7 @@ o.default = "dns2socks"
 o.rmempty = false
 o:reset_values()
 o:value("ss-tunnel", "ss-tunnel")
-o:value("unbound", "unbound")
+o:value("https-dns-proxy", "https-dns-proxy")
 
 o = s:option(Value, "dns_forward", translate("DNS Forward Address"))
 o.default = "8.8.8.8:53"
