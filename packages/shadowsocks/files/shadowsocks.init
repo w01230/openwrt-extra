@@ -85,18 +85,18 @@ start_dns() {
 		-L $DNS_FORWARD \
 		-f /var/run/ss-tunnel.pid
 	;;
-	unbound)
-		/etc/init.d/unbound start
+	https-dns-proxy)
+		/etc/init.d/https-dns-proxy restart
 	;;
 	esac
 }
 stop_dns() {
 	case "$DNS_MODE" in
 	ss-tunnel)
-		/etc/init.d/unbound disable 2>/dev/null
-		/etc/init.d/unbound stop 2>/dev/null
+		/etc/init.d/https-dns-proxy disable
+		/etc/init.d/https-dns-proxy stop
 	;;
-	unbound)
+	https-dns-proxy)
 		killall -q -9 ss-tunnel 2>/dev/null
 	;;
 	esac
