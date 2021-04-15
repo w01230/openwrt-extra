@@ -58,7 +58,6 @@ define Package/shadowsocks/install
 	$(INSTALL_DATA) ./files/shadowsocks.firewall $(1)/etc/shadowsocks/firewall.include
 	$(INSTALL_DATA) ./files/chnroute.* $(1)/etc/shadowsocks/
 	$(INSTALL_DATA) ./files/shadowsocks.config $(1)/etc/config/shadowsocks
-	$(INSTALL_DATA) ./files/unbound $(1)/etc/config/unbound
 endef
 
 $(eval $(call BuildPackage,shadowsocks))
