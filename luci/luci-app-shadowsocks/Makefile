@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Support for Shadowsocks
-LUCI_DEPENDS:=+shadowsocks +unbound-daemon
+LUCI_DEPENDS:=+shadowsocks
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
